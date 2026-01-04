@@ -12,7 +12,8 @@ import path from 'path';
 import { LocalExecutor } from '../../lib/agent/LocalExecutor.js';
 
 import { Message, PendingToolCall } from '../../types/index.js';
-import { truncateForRAM, pruneHistoryByChars } from '../../utils/memory.js';
+// [UPDATE] Import appendMemory di sini
+import { truncateForRAM, pruneHistoryByChars, appendMemory } from '../../utils/memory.js';
 
 // --- SHADOW PERSISTENCE LAYER ---
 let shadowMessages: Message[] = [{ id: 'welcome', role: 'system', name: 'welcome_msg', content: '' }];
@@ -63,7 +64,6 @@ export function useChat() {
     }, []);
 
     const approvalResolver = useRef<((choice: 'allow' | 'deny' | 'always') => void) | null>(null);
-
     const abortController = useRef<AbortController | null>(null);
 
     // --- AUTO-SAVE ---
@@ -72,9 +72,7 @@ export function useChat() {
             if (messages.length > 2) {
                 try {
                     saveChat('autosave', messages);
-                } catch (e) {
-                    // silent fail
-                }
+                } catch (e) { }
             }
         }, 2000);
         return () => clearTimeout(timeout);
@@ -82,8 +80,6 @@ export function useChat() {
 
     const executorRef = useRef<LocalExecutor>(new LocalExecutor());
 
-    // [FIX] STOP LOADING LOGIC YANG LEBIH CERDAS
-    // Menutup Tool Call yang menggantung biar AI gak bingung di prompt selanjutnya.
     const stopLoading = useCallback(() => {
         if (abortController.current) {
             abortController.current.abort();
@@ -96,10 +92,7 @@ export function useChat() {
             const lastMsg = prev[prev.length - 1];
             const newMsgs = [...prev];
 
-            // 1. Cek apakah pesan terakhir adalah Assistant yang lagi mau nge-Tool?
             if (lastMsg && lastMsg.role === 'assistant' && lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
-                // 2. Kalau iya, kita harus masukin pesan "Tool Result" palsu yang isinya "Interrupted"
-                // Ini PENTING biar context LLM jadi valid (User -> Assistant -> Tool Result).
                 lastMsg.tool_calls.forEach(tc => {
                     newMsgs.push({
                         id: 'tool-stop-' + Date.now() + Math.random(),
@@ -111,18 +104,17 @@ export function useChat() {
                 });
             }
 
-            // 3. Tambahkan pesan System Notice biasa buat UI user
             if (killed || isLoading) {
                 newMsgs.push({ id: 'sys-' + Date.now(), role: 'system', content: '[NOTICE] Active process terminated by user.' });
             }
 
-            shadowMessages = newMsgs; // Sync shadow biar executor berikutnya baca history yang bener
+            shadowMessages = newMsgs;
             return newMsgs;
         });
 
         setIsLoading(false);
         setAgentStatus(null);
-        setPendingApproval(null); // Reset approval kalau ada
+        setPendingApproval(null);
     }, [isLoading]);
 
 
@@ -150,10 +142,7 @@ export function useChat() {
             shadowMessages = welcome;
             return;
         }
-        if (lowerContent === '/model') {
-            setActiveDialog('model');
-            return;
-        }
+        if (lowerContent === '/model') { setActiveDialog('model'); return; }
         if (content.startsWith('SYSTEM_MODEL_CHANGED:')) {
             const newModel = content.split(':')[1];
             setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `[CONFIG] Model successfully changed to: ${newModel}` }]);
@@ -163,10 +152,7 @@ export function useChat() {
             setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `[CONFIG] API Key updated successfully.` }]);
             return;
         }
-        if (lowerContent === '/auth') {
-            setActiveDialog('auth');
-            return;
-        }
+        if (lowerContent === '/auth') { setActiveDialog('auth'); return; }
         if (lowerContent.startsWith('/chat')) {
             const parts = content.split(/\s+/);
             const sub = parts[1]?.toLowerCase();
@@ -180,11 +166,8 @@ export function useChat() {
             }
             if (sub === 'resume' && arg) {
                 const loaded = loadChat(arg);
-                if (loaded.length > 0) {
-                    setMessages(loaded);
-                } else {
-                    setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]);
-                }
+                if (loaded.length > 0) { setMessages(loaded); }
+                else { setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]); }
                 return;
             }
             if (sub === 'list') {
@@ -204,7 +187,6 @@ export function useChat() {
                 setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat shared to: ${arg}` }]);
                 return;
             }
-
             const usage = `Usage: /chat [save <id> | resume <id> | list | delete <id> | share <file>]`;
             setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: usage }]);
             return;
@@ -233,14 +215,12 @@ export function useChat() {
 
         const userMsg: Message = { id: 'user-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7), role: 'user', content: truncateForRAM(content) };
 
-        // [IMPORTANT] Stop previous request before starting new one
         stopLoading();
 
         const requestId = currentRequestIdRef.current;
         abortController.current = new AbortController();
         const signal = abortController.current.signal;
 
-        // Force refresh messages from ref to ensure we have the "Stop" message included
         let currentMsgs = [...messagesRef.current, userMsg];
 
         setMessages(currentMsgs);
@@ -286,6 +266,29 @@ export function useChat() {
                 },
                 signal
             });
+
+            // [BARU] LOGIC CEK MEMORY SAVE
+            // Kita cek pesan terakhir, apakah mengandung kode rahasia dari System Prompt?
+            const finalMessages = messagesRef.current;
+            const lastMsg = finalMessages[finalMessages.length - 1];
+
+            if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
+                // Regex: Cari baris yang diawali MEMORY_SAVE:
+                const memoryMatch = lastMsg.content.match(/MEMORY_SAVE:\s*(.*)/);
+                if (memoryMatch && memoryMatch[1]) {
+                    const fact = memoryMatch[1].trim();
+                    const success = appendMemory(fact);
+
+                    // Kalau sukses, kasih tau user dengan pesan sistem yang keren
+                    if (success) {
+                        setMessages(prev => [
+                            ...prev,
+                            { id: 'sys-mem-' + Date.now(), role: 'system', content: `[MEMORY SAVED] "${fact}" to Sovereign Storage.` }
+                        ]);
+                    }
+                }
+            }
+
         } catch (err: any) {
             if (requestId === currentRequestIdRef.current) {
                 setError(err.message || 'Unknown error');
@@ -297,7 +300,7 @@ export function useChat() {
                 abortController.current = null;
             }
         }
-    }, [stopLoading]); // Dependency on new stopLoading
+    }, [stopLoading]);
 
     const forgetMessages = useCallback((count: number) => {
         setMessages(prev => {

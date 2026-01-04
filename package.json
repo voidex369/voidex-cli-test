@@ -2,14 +2,15 @@
   "name": "voidex-cli",
   "version": "1.0.0",
   "description": "VoidEx CLI - By VoidEx (https://t.me/voidex369)",
-  "main": "dist/cli.js",
   "type": "module",
   "bin": {
     "voidex": "./dist/cli.js"
   },
+  "main": "dist/cli.js",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/cli.tsx",
+    "dev": "npm run build && node dist/cli.js",
+    "dev:watch": "tsc -w",
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run build",
     "test": "vitest run"
@@ -34,7 +35,6 @@
     "@types/node": "^20.11.24",
     "@types/react": "^18.2.61",
     "@types/react-dom": "^18.2.19",
-    "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "vitest": "^4.0.16"
   }

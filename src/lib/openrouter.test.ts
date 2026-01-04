@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createClient } from './openrouter';
+import { createClient } from './openrouter.js';
 import OpenAI from 'openai';
 
 // 🎭 MOCKING: Bajak library OpenAI
@@ -9,7 +9,7 @@ vi.mock('openai');
 describe('OpenRouter Client', () => {
     it('harus membuat instance OpenAI dengan config OpenRouter', () => {
         const fakeKey = 'sk-12345';
-        
+
         createClient(fakeKey);
 
         // Kita intip: Apakah class OpenAI dipanggil?

@@ -10,7 +10,8 @@ interface InputAreaProps {
   selectedIndex: number;
   hasMemory: boolean;
   isLoading: boolean;
-  resetKey?: number; // [BARU] Sinyal buat reset kursor
+  resetKey?: number;
+  error?: string | null;
 }
 
 const InputArea: React.FC<InputAreaProps> = ({
@@ -21,12 +22,12 @@ const InputArea: React.FC<InputAreaProps> = ({
   selectedIndex,
   hasMemory,
   isLoading,
-  resetKey = 0 // [BARU] Default 0
+  resetKey = 0,
+  error = null
 }) => {
   return (
     <Box flexDirection="column" width="100%">
 
-      {/* 1. COMMAND SUGGESTIONS POPUP */}
       {suggestions.length > 0 && (
         <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1} marginBottom={1} width="100%">
           {suggestions.map((s, i) => (
@@ -40,34 +41,37 @@ const InputArea: React.FC<InputAreaProps> = ({
         </Box>
       )}
 
-      {/* 2. MAIN INPUT BOX */}
-      <Box borderStyle="single" borderColor={isLoading ? 'gray' : 'green'} paddingX={1} flexDirection="column" width="100%">
-        <Box flexDirection="row" width="100%">
-          <Box marginRight={1}>
-            <Text bold color={isLoading ? 'gray' : 'green'}>❯</Text>
-          </Box>
-          <Box flexGrow={1} minHeight={1}>
-            {isLoading ? (
-              <Text color="gray">System locked...</Text>
-            ) : (
-              <TextInput
-                key={resetKey} // [BARU] Ini triknya! Kalau angka ini berubah, input di-reset & kursor ke ujung.
-                value={input}
-                onChange={setInput}
-                onSubmit={onSubmit}
-                placeholder="Type or / for commands..."
-              />
-            )}
-          </Box>
+      <Box borderStyle="single" borderColor={isLoading ? 'yellow' : 'green'} paddingX={1} width="100%">
+        <Box marginRight={1}>
+          <Text bold color={isLoading ? 'yellow' : 'green'}>❯</Text>
         </Box>
 
-        {/* 3. MEMORY INDICATOR */}
+        <Box flexGrow={1}>
+          {isLoading ? (
+            <Text color="gray">Sovereign is thinking...</Text>
+          ) : (
+            <TextInput
+              key={resetKey}
+              value={input}
+              onChange={setInput}
+              onSubmit={onSubmit}
+              placeholder="Type or / for commands..."
+            />
+          )}
+        </Box>
+
         {hasMemory && (
-          <Box marginTop={1} width="100%">
-            <Text dimColor italic>└─ Sovereign memory active</Text>
+          <Box marginLeft={1}>
+            <Text dimColor>🧠 Sovereign Memory Active</Text>
           </Box>
         )}
       </Box>
+
+      {error && (
+        <Box paddingX={1}>
+          <Text color="red" bold italic>✖ Error: {error}</Text>
+        </Box>
+      )}
     </Box>
   );
 };

@@ -1,48 +1,62 @@
 import { describe, it, expect } from 'vitest';
-import { truncateForRAM, pruneHistoryByChars } from './memory';
-import { Message } from '../types/index';
+import { trimMessagesToTokenLimit } from './memory.js';
+import type { Message } from '../types/index.js';
 
-describe('Memory Utils', () => {
-    
-    // Test 1: truncateForRAM
-    describe('truncateForRAM', () => {
-        it('jangan ubah teks yang pendek', () => {
-            const shortText = 'Halo dunia';
-            expect(truncateForRAM(shortText)).toBe(shortText);
-        });
+describe('trimMessagesToTokenLimit', () => {
+    it('should trim old messages when token limit is exceeded', () => {
+        const messages: Message[] = [
+            {
+                id: 'msg-1',
+                role: 'user',
+                content: 'Prompt Awal'
+            },
+            {
+                id: 'msg-2',
+                role: 'assistant',
+                // 105k karakter → sengaja lebih besar dari limit 100k
+                content: 'a'.repeat(105_000)
+            },
+            {
+                id: 'msg-3',
+                role: 'user',
+                content: 'Chat Terbaru'
+            }
+        ];
 
-        it('harus memotong teks yang terlalu panjang', () => {
-            // REVISI: Gunakan teks yang JAUH lebih panjang (60.000 char)
-            // Biar (50.000 + warning) pasti lebih kecil dari 60.000
-            const longText = 'a'.repeat(60000); 
-            const result = truncateForRAM(longText);
+        const trimmed = trimMessagesToTokenLimit(messages, 100_000);
 
-            // Sekarang logikanya pasti masuk: 50.057 < 60.000
-            expect(result?.length).toBeLessThan(longText.length);
-            expect(result).toContain('TRUNCATED AT 50KB');
-        });
+        // Hanya pesan terakhir yang harus tersisa
+        expect(trimmed).toHaveLength(1);
+        expect(trimmed[0].id).toBe('msg-3');
+        expect(trimmed[0].role).toBe('user');
+        expect(trimmed[0].content).toBe('Chat Terbaru');
     });
 
-    // Test 2: pruneHistoryByChars
-    describe('pruneHistoryByChars', () => {
-        it('harus membuang pesan lama jika total char kegedean', () => {
-            // REVISI: Gunakan 3 pesan.
-            // Pesan 1: User (Kecil) -> Akan disimpan (User pertama diproteksi)
-            // Pesan 2: Assistant (Raksasa) -> Akan DIBUANG karena bikin over limit
-            // Pesan 3: User (Kecil) -> Akan disimpan (Chat terbaru)
-            
-            const history: Message[] = [
-                { role: 'user', content: 'Prompt Awal' }, 
-                { role: 'assistant', content: 'a'.repeat(105000) }, // 105k PASTI > 100k
-                { role: 'user', content: 'Chat Terbaru' }
-            ];
+    it('should return all messages if token limit is not exceeded', () => {
+        const messages: Message[] = [
+            {
+                id: 'msg-1',
+                role: 'user',
+                content: 'Halo'
+            },
+            {
+                id: 'msg-2',
+                role: 'assistant',
+                content: 'Hai, ada yang bisa saya bantu?'
+            }
+        ];
 
-            const result = pruneHistoryByChars(history);
-            
-            // Logikanya: Pesan tengah (Assistant) harusnya hilang.
-            // Jadi sisa 2 pesan (User awal & User akhir) atau 1 pesan (tergantung implementasi loop break)
-            // Yang penting jumlahnya berkurang dari 3.
-            expect(result.length).toBeLessThan(history.length);
-        });
+        const trimmed = trimMessagesToTokenLimit(messages, 100_000);
+
+        expect(trimmed).toHaveLength(2);
+        expect(trimmed).toEqual(messages);
+    });
+
+    it('should return an empty array if input is empty', () => {
+        const messages: Message[] = [];
+
+        const trimmed = trimMessagesToTokenLimit(messages, 100_000);
+
+        expect(trimmed).toEqual([]);
     });
 });

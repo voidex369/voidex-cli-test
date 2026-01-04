@@ -4,7 +4,8 @@ import Gradient from 'ink-gradient';
 import { Message } from '../../types/index.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 
-// --- Sub-components (Named Exports tetap ada untuk fleksibilitas) ---
+
+/* ---------------- SUB COMPONENTS ---------------- */
 
 export const HelpMenu = React.memo(() => {
     const { theme } = useTheme();
@@ -114,18 +115,22 @@ export const TruncatedResultBox = React.memo(({ content, isSuccess }: { content:
     );
 });
 
+/* ---------------- MESSAGE ITEM ---------------- */
 
 const MessageItem = React.memo(({ msg }: { msg: Message }) => {
     const { theme } = useTheme();
     const boxProps = { flexDirection: "column" as const, marginBottom: 1, flexShrink: 0, width: "100%" as const };
 
+    /* ---------- SYSTEM ---------- */
     if (msg.role === 'system') {
         if (msg.name === 'welcome_msg') return <WelcomeBox />;
         if (msg.name === 'help_menu') return <HelpMenu />;
         if (msg.name === 'tools_list') return <ToolsList content={msg.content || ''} />;
+        
         return <Box paddingX={1} marginBottom={1} flexShrink={0}><Text color={theme.ui.comment} italic>✦ {msg.content}</Text></Box>;
     }
 
+    /* ---------- TOOL ---------- */
     if (msg.role === 'tool') {
         const isSuccess = !msg.content?.toLowerCase().includes('error') && !msg.content?.toLowerCase().includes('failed');
         const color = isSuccess ? theme.status.success : theme.status.error;
@@ -137,6 +142,7 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
         );
     }
 
+    /* ---------- ASSISTANT ---------- */
     if (msg.role === 'assistant') {
         const hasTools = msg.tool_calls && msg.tool_calls.length > 0;
         const hasContent = msg.content && msg.content.trim().length > 0;
@@ -169,6 +175,7 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
         );
     }
 
+    /* ---------- USER ---------- */
     return (
         <Box {...boxProps} borderStyle="round" borderColor={theme.border.focused} paddingX={1} width="100%">
             <Text bold color={theme.text.link}>👤 You:</Text>

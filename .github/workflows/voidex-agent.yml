@@ -12,10 +12,10 @@ defaults:
 
 jobs:
   process-request:
-    # Jalankan jika: Issue baru, ATAU komentar yang mengandung '@voidex'
+    # Jalankan jika: Issue baru, ATAU komentar yang mengandung '@voidex369'
     if: |
       github.event_name == 'issues' || 
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@voidex'))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@voidex369'))
     runs-on: 'ubuntu-latest'
     permissions:
       contents: 'write'
@@ -128,7 +128,7 @@ jobs:
               let requestBody = process.env.BODY;
 
               // Bersihkan trigger
-              requestBody = requestBody.replace(/@voidex/g, '').replace(/@gemini-cli/g, '').trim();
+              requestBody = requestBody.replace(/@voidex369/g, '').replace(/@voidex/g, '').replace(/@gemini-cli/g, '').trim();
               if (!requestBody || requestBody.length < 3) return;
 
               console.log(`🚀 Executing: Issue #${issueNumber} | Model: ${model}`);

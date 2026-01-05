@@ -176,13 +176,18 @@ jobs:
                 iterationLimit: 5
               });
 
-              // Build Report
-              let report = `## 🤖 VoidEx Agent Report\n\n**Target:** \`${requestBody}\`\n**Model:** \`${model}\`\n\n`;
-              if (finalReport) report += `### 🧠 Analysis\n${finalReport}\n\n`;
+              // Build Report (Simpel & Clean)
+              let report = `**🤖 VoidEx Report**\n`;
+              report += `> Request: "${requestBody}"\n`;
+              report += `> Model: ${model}\n\n`;
               
-              report += `### 📜 Output\n\`\`\`bash\n`;
-              report += (logs.join('\n') || "No output.").substring(0, 15000);
-              report += `\n\`\`\`\n\n---\n*Powered by ${model} via OpenRouter.*`;
+              if (finalReport) {
+                report += `**Analisis:**\n${finalReport}\n\n`;
+              }
+              
+              if (logs.length > 0) {
+                report += `**Log:**\n\`\`\`\n` + logs.join('\n').substring(0, 4000) + `\n\`\`\``;
+              }
 
               await postComment(token, repo, issueNumber, report);
 

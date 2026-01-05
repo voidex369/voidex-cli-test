@@ -152,7 +152,7 @@ jobs:
               await executor.run({
                 model: model,
                 apiKey: apiKey,
-                messages: [{ role: 'user', content: `Task: ${requestBody}\n\nContext: You are VoidEx, a sovereign security agent. Analyze the request strictly. If it asks about tools, explain them. If it asks for code analysis, analyze code. Do not hallucinate topics (e.g., do not treat generic questions as specific tech definitions like INI files unless requested).` }],
+                messages: [{ role: 'user', content: `Analyze this request within the current project directory (File System): "${requestBody}".\n\nRules:\n1. If the request is "Cara pakai tool ini", it means "How to use tools available in this folder/project".\n2. List specific files or commands relevant to the request.\n3. Do not list your internal AI capabilities.` }],
                 onUpdateMessages: (msgs) => {
                   const last = msgs[msgs.length - 1];
                   if (last && last.role === 'assistant' && last.content && last.content.length > 5) {

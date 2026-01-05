@@ -405,6 +405,7 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
         const trimmed = v.trim();
         if (!trimmed) return;
 
+        // Handle Commands Lokal (UI Side)
         if (trimmed === '/model' || trimmed === '/auth' || trimmed === '/theme') {
             onDialog(trimmed.slice(1));
             setInput(''); return;
@@ -414,7 +415,17 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
             setInput(''); return;
         }
         if (trimmed === '/exit') { exit(); return; }
+        
+        // [PERBAIKAN] Handle /clear di sini agar langsung efektif
+        if (trimmed === '/clear') {
+            // Reset input dulu agar bersih
+            setInput('');
+            // Kirim command ke hook untuk di-proses (menghapus state messages)
+            sendMessage(trimmed);
+            return;
+        }
 
+        // Default: Kirim ke AI atau handler umum
         sendMessage(trimmed);
         setHistory((prev: string[]) => {
             const last = prev[prev.length - 1];

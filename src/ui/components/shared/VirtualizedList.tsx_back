@@ -18,7 +18,7 @@ import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext.js';
 import { useBatchedScroll } from '../../hooks/useBatchedScroll.js';
 
-import { type DOMElement, measureElement, Box } from 'ink';
+import { type DOMElement, measureElement, Box, Text } from 'ink';
 
 export const SCROLL_TO_ITEM_END = Number.MAX_SAFE_INTEGER;
 
@@ -107,8 +107,6 @@ function VirtualizedList<T>(
 
         return { index: 0, offset: 0 };
     });
-    
-    // State untuk melacak apakah user sedang meng-scroll manual
     const [isStickingToBottom, setIsStickingToBottom] = useState(() => {
         const scrollToEnd =
             initialScrollIndex === SCROLL_TO_ITEM_END ||
@@ -117,13 +115,11 @@ function VirtualizedList<T>(
                 initialScrollOffsetInIndex === SCROLL_TO_ITEM_END);
         return scrollToEnd;
     });
-    
     const containerRef = useRef<DOMElement>(null);
     const [containerHeight, setContainerHeight] = useState(0);
     const itemRefs = useRef<Array<DOMElement | null>>([]);
     const [heights, setHeights] = useState<number[]>([]);
     const isInitialScrollSet = useRef(false);
-    const isUserDragging = useRef(false); // [NEW] Tracking manual scroll
 
     const { totalHeight, offsets } = useMemo(() => {
         const offsets: number[] = [0];
@@ -154,7 +150,9 @@ function VirtualizedList<T>(
         });
     }, [data, estimatedItemHeight]);
 
-    // Update Heights Logic
+    // This layout effect needs to run on every render to correctly measure the
+    // container and ensure we recompute the layout if it has changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useLayoutEffect(() => {
         if (containerRef.current) {
             const height = Math.round(measureElement(containerRef.current).height);
@@ -164,11 +162,6 @@ function VirtualizedList<T>(
         }
 
         let newHeights: number[] | null = null;
-        // Hanya hitung ulang item yang terlihat (visible range)
-        const startIndex = Math.max(0, findLastIndex(offsets, (offset) => offset <= scrollTop) - 1);
-        const endIndexOffset = offsets.findIndex((offset) => offset > scrollTop + containerHeight);
-        const endIndex = endIndexOffset === -1 ? data.length - 1 : Math.min(data.length - 1, endIndexOffset);
-
         for (let i = startIndex; i <= endIndex; i++) {
             const itemRef = itemRefs.current[i];
             if (itemRef) {
@@ -225,42 +218,54 @@ function VirtualizedList<T>(
     const prevContainerHeight = useRef(scrollableContainerHeight);
 
     useLayoutEffect(() => {
-        const contentPreviouslyFit = prevTotalHeight.current <= prevContainerHeight.current;
-        const wasScrolledToBottomPixels = prevScrollTop.current >= prevTotalHeight.current - prevContainerHeight.current - 1;
+        const contentPreviouslyFit =
+            prevTotalHeight.current <= prevContainerHeight.current;
+        const wasScrolledToBottomPixels =
+            prevScrollTop.current >=
+            prevTotalHeight.current - prevContainerHeight.current - 1;
         const wasAtBottom = contentPreviouslyFit || wasScrolledToBottomPixels;
 
-        const listGrew = data.length > prevDataLength.current;
-        const containerChanged = prevContainerHeight.current !== scrollableContainerHeight;
-
-        // [LOGIKA FIX SCROLL THRASHING]
-        // Hanya update scroll jika:
-        // 1. User sudah ada di paling bawah (isStickingToBottom) ATAU list baru saja bertambah
-        // 2. User tidak sedang drag scroll manual (isUserDragging)
-        
-        if (isUserDragging.current) {
-            // Jika user sedang drag, jangan paksa scroll, tapi update status 'isStickingToBottom'
-            if (wasAtBottom) setIsStickingToBottom(true);
-            else setIsStickingToBottom(false);
-        } else {
-            // Auto-scroll logic
-            if ((listGrew && (isStickingToBottom || wasAtBottom)) || (isStickingToBottom && containerChanged)) {
-                setScrollAnchor({
-                    index: data.length > 0 ? data.length - 1 : 0,
-                    offset: SCROLL_TO_ITEM_END,
-                });
-                setIsStickingToBottom(true);
-            } else if (
-                (scrollAnchor.index >= data.length ||
-                scrollTop > totalHeight - scrollableContainerHeight) &&
-                data.length > 0
-            ) {
-                const newScrollTop = Math.max(0, totalHeight - scrollableContainerHeight);
-                setScrollAnchor(getAnchorForScrollTop(newScrollTop, offsets));
-            } else if (data.length === 0) {
-                setScrollAnchor({ index: 0, offset: 0 });
-            }
+        // If the user was at the bottom, they are now sticking. This handles
+        // manually scrolling back to the bottom.
+        if (wasAtBottom && scrollTop >= prevScrollTop.current) {
+            setIsStickingToBottom(true);
         }
 
+        const listGrew = data.length > prevDataLength.current;
+        const containerChanged =
+            prevContainerHeight.current !== scrollableContainerHeight;
+
+        // We scroll to the end if:
+        // 1. The list grew AND we were already at the bottom (or sticking).
+        // 2. We are sticking to the bottom AND the container size changed.
+        if (
+            (listGrew && (isStickingToBottom || wasAtBottom)) ||
+            (isStickingToBottom && containerChanged)
+        ) {
+            setScrollAnchor({
+                index: data.length > 0 ? data.length - 1 : 0,
+                offset: SCROLL_TO_ITEM_END,
+            });
+            // If we are scrolling to the bottom, we are by definition sticking.
+            if (!isStickingToBottom) {
+                setIsStickingToBottom(true);
+            }
+        }
+        // Scenario 2: The list has changed (shrunk) in a way that our
+        // current scroll position or anchor is invalid. We should adjust to the bottom.
+        else if (
+            (scrollAnchor.index >= data.length ||
+                scrollTop > totalHeight - scrollableContainerHeight) &&
+            data.length > 0
+        ) {
+            const newScrollTop = Math.max(0, totalHeight - scrollableContainerHeight);
+            setScrollAnchor(getAnchorForScrollTop(newScrollTop, offsets));
+        } else if (data.length === 0) {
+            // List is now empty, reset scroll to top.
+            setScrollAnchor({ index: 0, offset: 0 });
+        }
+
+        // Update refs for the next render cycle.
         prevDataLength.current = data.length;
         prevTotalHeight.current = totalHeight;
         prevScrollTop.current = scrollTop;
@@ -359,6 +364,10 @@ function VirtualizedList<T>(
             );
         }
     }
+
+
+
+
 
     const { getScrollTop, setPendingScrollTop } = useBatchedScroll(scrollTop);
 
@@ -467,29 +476,6 @@ function VirtualizedList<T>(
         ],
     );
 
-    // [NEW] Handler untuk detect manual scroll (drag)
-    // Ini akan meng-override behavior default Ink agar kita bisa detect user interaction
-    const handleTouchStart = () => {
-        isUserDragging.current = true;
-    };
-
-    const handleTouchEnd = () => {
-        // Beri timeout agar scroll event selesai diproses
-        setTimeout(() => {
-            isUserDragging.current = false;
-            
-            // Cek apakah user berhenti di bawah atau di tengah
-            const currentScroll = getScrollTop();
-            const bottomThreshold = totalHeight - scrollableContainerHeight - 5; // Toleransi 5px
-            
-            if (currentScroll >= bottomThreshold) {
-                setIsStickingToBottom(true);
-            } else {
-                setIsStickingToBottom(false);
-            }
-        }, 50);
-    };
-
     return (
         <Box
             ref={containerRef}
@@ -499,8 +485,6 @@ function VirtualizedList<T>(
             height="100%"
             flexDirection="column"
             paddingRight={1}
-            // Pasang event handler manual (hanya bekerja jika terminal support mouse/scroll wheel)
-            // Tapi karena Ink tidak punya native scroll event, kita mengandalkan logic di useBatchedScroll
         >
             <Box flexShrink={0} width="100%" flexDirection="column" marginTop={-scrollTop}>
                 <Box height={topSpacerHeight} flexShrink={0} />

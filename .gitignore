@@ -1,7 +1,27 @@
+persona.txt
+
+# Environment variables
+.env
+.env*
+
+# Dependencies
 node_modules/
 dist/
-venv/
-.env
+build/
+ven/
+
+# Log files
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
 .DS_Store
-persona.txt
+Thumbs.db
+
+# Config pribadi (Jika ada di folder project, biasanya di ~/.voidex-cli)
+.config/
+
+.gemini/
+gha-creds-*.json

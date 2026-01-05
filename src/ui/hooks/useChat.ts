@@ -166,8 +166,13 @@ export function useChat() {
             }
             if (sub === 'resume' && arg) {
                 const loaded = loadChat(arg);
-                if (loaded.length > 0) { setMessages(loaded); }
-                else { setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]); }
+                if (loaded.length > 0) { 
+                    // [FIX] Force update shadowMessages immediately to prevent loop
+                    shadowMessages = loaded; 
+                    setMessages(loaded); 
+                } else { 
+                    setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]); 
+                }
                 return;
             }
             if (sub === 'list') {

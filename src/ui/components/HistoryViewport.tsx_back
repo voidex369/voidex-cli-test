@@ -7,7 +7,7 @@
 import React, { useRef, useMemo, useCallback } from 'react';
 import { Box, Static, type DOMElement } from 'ink';
 import { VirtualizedList, VirtualizedListRef } from './shared/VirtualizedList.js';
-import MessageItem from './MessageItem.js';
+import MessageItem from './MessageItem.js'; // [FIX] Default Import
 import { Message } from '../../types/index.js';
 import { useWindowSize } from '../hooks/useWindowSize.js';
 
@@ -44,14 +44,18 @@ const HistoryViewport = React.memo(({ messages, isFullScreen = false, isLoading 
     ), [safeWidth]);
 
     // --- NORMAL MODE: Smart Static Splitting ---
+    // Logikanya: Pesan lama masuk <Static> (Frozen, performa tinggi).
+    // Pesan terakhir (yang lagi ngetik/loading) masuk render biasa biar animasinya jalan.
     if (!isFullScreen) {
         let completedMessages: Message[] = [];
         let activeMessages: Message[] = [];
 
         if (isLoading && messages.length > 0) {
+            // Kalau lagi loading, pesan terakhir pasti lagi update. Jangan dibekukan.
             completedMessages = messages.slice(0, -1);
             activeMessages = [messages[messages.length - 1]];
         } else {
+            // Kalau idle, semua pesan sudah final. Bekukan semua.
             completedMessages = messages;
             activeMessages = [];
         }
@@ -68,6 +72,7 @@ const HistoryViewport = React.memo(({ messages, isFullScreen = false, isLoading 
                     </Static>
                 )}
 
+                {/* Active Message Area (Streaming) */}
                 {activeMessages.map((msg, index) => (
                     <Box key={msg.id || 'active'} width={safeWidth}>
                         <MessageItem msg={msg} />
@@ -93,4 +98,4 @@ const HistoryViewport = React.memo(({ messages, isFullScreen = false, isLoading 
     );
 });
 
-export default HistoryViewport;
+export default HistoryViewport; // [FIX] Default Export

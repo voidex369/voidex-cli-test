@@ -132,47 +132,12 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
 
     /* ---------- TOOL ---------- */
     if (msg.role === 'tool') {
-        let displayContent = '';
-        let isSuccess = true;
-
-        // [FIX] Menggunakan format JSON yang dikirim dari LocalExecutor.ts
-        try {
-            if (msg.content && msg.content.trim().startsWith('{')) {
-                const parsed = JSON.parse(msg.content);
-                if (parsed.output !== undefined) {
-                    // Format baru dari LocalExecutor
-                    displayContent = parsed.output;
-                    isSuccess = !parsed.isError;
-                } else {
-                    // Fallback format lama atau JSON lain
-                    displayContent = msg.content;
-                    isSuccess = !parsed.isError && !parsed.success === false;
-                }
-            } else {
-                // Fallback jika bukan JSON (format lama)
-                displayContent = msg.content || '';
-                const textLower = displayContent.toLowerCase();
-                isSuccess = !textLower.includes('command not found') && 
-                           !textLower.includes('failed to') && 
-                           !textLower.includes('enoent') &&
-                           !textLower.includes('permission denied');
-            }
-        } catch (e) {
-            // Bukan JSON sama sekali
-            displayContent = msg.content || '';
-            const textLower = displayContent.toLowerCase();
-            isSuccess = !textLower.includes('command not found') && 
-                       !textLower.includes('failed to') && 
-                       !textLower.includes('enoent') &&
-                       !textLower.includes('permission denied');
-        }
-
+        const isSuccess = !msg.content?.toLowerCase().includes('error') && !msg.content?.toLowerCase().includes('failed');
         const color = isSuccess ? theme.status.success : theme.status.error;
-
         return (
             <Box {...boxProps} marginLeft={1} borderStyle="round" borderColor={color} paddingX={1} width="100%">
                 <Text bold color={color}>{isSuccess ? '✓' : '✖'} Tool Result:</Text>
-                <TruncatedResultBox content={displayContent || ''} isSuccess={isSuccess} />
+                <TruncatedResultBox content={msg.content || ''} isSuccess={isSuccess} />
             </Box>
         );
     }

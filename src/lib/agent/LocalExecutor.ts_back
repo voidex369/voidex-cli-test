@@ -167,22 +167,21 @@ export class LocalExecutor {
                             hasChanges = true;
                         }
 
-                        // [PERBAIKAN SCROLL] Optimize batching untuk mencegah scroll thrashing
-                        // Interval 200ms lebih stabil untuk chat panjang
+                        // [OPTIMIZATION] Batch UI updates to reduce lag
                         if (hasChanges) {
                             if (!isAddedToHistory) {
                                 currentMessages.push(assistantMsg);
                                 isAddedToHistory = true;
                                 onUpdateMessages([...currentMessages]);
                                 lastUpdate = now;
-                            } else if (now - lastUpdate > 200) { 
+                            } else if (now - lastUpdate > 150) { // 150ms is optimal with Static rendering
                                 currentMessages[currentMessages.length - 1] = { ...assistantMsg };
                                 onUpdateMessages([...currentMessages]);
                                 lastUpdate = now;
                             }
                         }
                     }
-                    // Pastikan state akurat
+                    // [FIX] Ensure final state is sent once after loop
                     if (isAddedToHistory) {
                          currentMessages[currentMessages.length - 1] = { ...assistantMsg };
                          onUpdateMessages([...currentMessages]);
@@ -270,24 +269,12 @@ export class LocalExecutor {
                         const result = await toolFunc({ ...args, onOutput: (chunk: string) => onLiveOutput(chunk) });
 
                         onLiveOutput('');
-                        
-                        // [FIX] Mengirim status error secara eksplisit melalui format string JSON
-                        // Ini memastikan MessageItem.tsx bisa membaca status tanpa ragu
-                        const payload = {
-                            isError: result.isError,
-                            output: result.output || 'Done'
-                        };
-                        
-                        // Konversi ke string JSON agar muat di Message.content
-                        let content = JSON.stringify(payload);
-                        content = truncateForRAM(content);
-
                         toolMessages.push({
                             id: 'tool-' + Date.now() + Math.random(),
                             role: 'tool',
                             tool_call_id: tc.id,
                             name: toolName,
-                            content: content
+                            content: truncateForRAM(result.output) || 'Done'
                         });
 
                         if (result.isError && result.output.toLowerCase().includes('command not found')) {
@@ -295,13 +282,7 @@ export class LocalExecutor {
                             healPrompt = `CMD FAILED: ${result.output}`;
                         }
                     } catch (err: any) {
-                        toolMessages.push({ 
-                            id: 'tool-err-' + Date.now(), 
-                            role: 'tool', 
-                            tool_call_id: tc.id, 
-                            name: toolName, 
-                            content: JSON.stringify({ isError: true, output: `[TOOL CRASH] ${err.message}` })
-                        });
+                        toolMessages.push({ id: 'tool-err-' + Date.now(), role: 'tool', tool_call_id: tc.id, name: toolName, content: `[TOOL CRASH] ${err.message}` });
                     }
                 }
 

@@ -71,23 +71,46 @@ jobs:
           }
 
           // Fungsi helper untuk kirim komentar ke GitHub
+          // Menggunakan metode aman: Node.js handle JSON payload, lalu pass ke Curl via stdin
           async function postComment(token, repo, issueNumber, body) {
-            const { execSync } = require('child_process');
-            // Escape karakter yang bermasalah untuk JSON payload
-            const escapedBody = body
-              .replace(/\\/g, '\\\\')
-              .replace(/"/g, '\\"')
-              .replace(/\n/g, '\\n')
-              .replace(/\r/g, '');
+            const { spawn } = require('child_process');
 
-            const cmd = `curl -s -H "Authorization: token ${token}" -H "Accept: application/vnd.github.v3+json" -X POST "https://api.github.com/repos/${repo}/issues/${issueNumber}/comments" -d "{\"body\":\"${escapedBody}\"}"`;
-            
-            try {
-              execSync(cmd, { stdio: 'pipe' });
-              console.log(`✅ Komentar terkirim ke Issue #${issueNumber}`);
-            } catch (e) {
-              console.error("❌ Gagal mengirim komentar:", e.message);
-            }
+            // Buat payload JSON yang valid
+            const payload = JSON.stringify({ body: body });
+
+            // Jalankan curl
+            // -d @- artinya: baca data dari Stdin (standard input)
+            const curl = spawn('curl', [
+              '-s',
+              '-H', `Authorization: token ${token}`,
+              '-H', 'Accept: application/vnd.github.v3+json',
+              '-X', 'POST',
+              `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`,
+              '-d', '@-'
+            ]);
+
+            // Kirim payload ke stdin curl
+            curl.stdin.write(payload);
+            curl.stdin.end();
+
+            // Tangkap output
+            let output = '';
+            let errorOutput = '';
+
+            curl.stdout.on('data', (data) => output += data);
+            curl.stderr.on('data', (data) => errorOutput += data);
+
+            return new Promise((resolve, reject) => {
+              curl.on('close', (code) => {
+                if (code === 0) {
+                  console.log(`✅ Komentar terkirim ke Issue #${issueNumber}`);
+                  resolve(true);
+                } else {
+                  console.error(`❌ Curl error (Code ${code}): ${errorOutput}`);
+                  reject(new Error(errorOutput));
+                }
+              });
+            });
           }
 
           // Main Runner dengan Dynamic Import

@@ -50,7 +50,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number || github.event.issue.number }}
           ACTOR: ${{ github.actor }}
-          BODY: ${{ github.event.issue.body || github.event.comment.body }}
+          # Logic: Jika event comment, ambil comment.body. Jika event issue baru, ambil issue.body.
+          BODY: ${{ github.event.comment.body || github.event.issue.body }}
           REPO: ${{ github.repository }}
           # Model Xiaomi via OpenRouter
           MODEL: 'xiaomi/mimo-v2-flash:free'
@@ -116,6 +117,11 @@ jobs:
           // Main Runner dengan Dynamic Import
           (async () => {
             try {
+              console.log("=== DEBUG INFO ===");
+              console.log("ISSUE NUMBER:", process.env.ISSUE_NUMBER);
+              console.log("RAW BODY:", process.env.BODY); // Lihat apa yang dibaca GitHub
+              console.log("==================");
+
               console.log("Memuat LocalExecutor...");
               const LocalExecutor = await bootstrap();
               console.log("LocalExecutor loaded.");
@@ -129,7 +135,13 @@ jobs:
 
               // Bersihkan trigger
               requestBody = requestBody.replace(/@voidex369/g, '').replace(/@voidex/g, '').replace(/@gemini-cli/g, '').trim();
-              if (!requestBody || requestBody.length < 3) return;
+              
+              console.log("PROSESSED BODY:", requestBody); // Lihat hasil bersih
+
+              if (!requestBody || requestBody.length < 3) {
+                console.log("Body kosong atau terlalu singkat. Stopping.");
+                return;
+              }
 
               console.log(`🚀 Executing: Issue #${issueNumber} | Model: ${model}`);
 

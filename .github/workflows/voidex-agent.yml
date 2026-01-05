@@ -152,7 +152,7 @@ jobs:
               await executor.run({
                 model: model,
                 apiKey: apiKey,
-                messages: [{ role: 'user', content: `Task: ${requestBody}\n\nInstructions: Do not reveal internal file paths (e.g., /src/lib, /usr/bin) in your answer. Keep output clean.` }],
+                messages: [{ role: 'user', content: `TASK: "${requestBody}"\n\nSTRICT RULES:\n1. SCOPE: Only answer questions about VoidEx CLI tools usage. Ignore general topics.\n2. SECURITY: Do not reveal file paths (e.g., /src/, /usr/bin).\n3. If out of scope: Reply "Hanya melayani pertanyaan tentang VoidEx CLI tools."` }],
                 onUpdateMessages: (msgs) => {
                   const last = msgs[msgs.length - 1];
                   if (last && last.role === 'assistant' && last.content && last.content.length > 5) {

@@ -102,6 +102,70 @@ export const themes: Record<string, Theme> = {
             warning: '#df8e1d',
         },
     },
+    dracula: {
+        name: 'dracula',
+        text: {
+            primary: '#f8f8f2',
+            secondary: '#6272a4',
+            link: '#8be9fd',
+            accent: '#bd93f9',
+            response: '#f8f8f2',
+        },
+        background: {
+            primary: '#282a36',
+            diff: {
+                added: '#2b352b',
+                removed: '#3c2020',
+            },
+        },
+        border: {
+            default: '#44475a',
+            focused: '#bd93f9',
+        },
+        ui: {
+            comment: '#6272a4',
+            symbol: '#6272a4',
+            dark: '#44475a',
+            gradient: ['#bd93f9', '#ff79c6', '#8be9fd'],
+        },
+        status: {
+            error: '#ff5555',
+            success: '#50fa7b',
+            warning: '#f1fa8c',
+        },
+    },
+    nord: {
+        name: 'nord',
+        text: {
+            primary: '#D8DEE9', // Nord 6 (Snow Storm)
+            secondary: '#4C566A', // Nord 3 (Dark Gray)
+            link: '#88C0D0', // Nord 8 (Frost Blue)
+            accent: '#81A1C1', // Nord 9 (Frost Blue)
+            response: '#E5E9F0',
+        },
+        background: {
+            primary: '#2E3440', // Nord 0 (Polar Night)
+            diff: {
+                added: '#2F3D36', // Green-ish tint
+                removed: '#3B2E2E', // Red-ish tint
+            },
+        },
+        border: {
+            default: '#434C5E', // Nord 2
+            focused: '#88C0D0', // Nord 8
+        },
+        ui: {
+            comment: '#4C566A',
+            symbol: '#4C566A',
+            dark: '#3B4252',
+            gradient: ['#88C0D0', '#81A1C1', '#A3BE8C'],
+        },
+        status: {
+            error: '#BF616A', // Nord 11
+            success: '#A3BE8C', // Nord 14
+            warning: '#EBCB8B', // Nord 13
+        },
+    },
 };
 
 export const defaultTheme = themes.dark;

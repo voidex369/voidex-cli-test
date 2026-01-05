@@ -42,150 +42,18 @@ const ModelPicker = React.memo(({ onSelect, onCancel, models }: any) => {
 });
 
 const ThemePicker = React.memo(({ onSelect, onCancel }: any) => {
-    const { availableThemes, theme, setTheme } = useTheme();
+    const { availableThemes, theme } = useTheme();
     const [selectedIndex, setSelectedIndex] = useState(0);
-
-    // Daftar tema preview (dibuat dengan useMemo agar referensinya stabil)
-    const themeList = useMemo(() => 
-        availableThemes.map((t: string) => ({
-            id: t,
-            displayName: t === 'dark' ? 'Default Dark' : 
-                         t === 'light' ? 'Default Light' : 
-                         t === 'dracula' ? 'Dracula Dark' : 
-                         t === 'nord' ? 'Nord' : t
-        })), 
-    [availableThemes]);
-    
-    // Mock theme object untuk preview (tipe 'any' agar fleksibel)
-    const [previewTheme, setPreviewTheme] = useState<any>(() => {
-        // Default ke Dark saat mount
-        return {
-            text: { primary: '', secondary: '#6C7086', accent: '#CBA6F7' },
-            ui: { dark: '#45485A' },
-            background: { primary: '#1E1E2E' },
-            border: { default: '#6C7086', focused: '#89B4FA' },
-            status: { error: '#F38BA8', success: '#A6E3A1', warning: '#F9E2AF' }
-        };
-    });
-
-    // Update preview saat selection berubah
-    useEffect(() => {
-        if (themeList.length === 0) return;
-        const id = themeList[selectedIndex]?.id;
-        
-        switch(id) {
-            case 'light':
-                setPreviewTheme({
-                    text: { primary: '#4c4f69', secondary: '#9ca0b0', accent: '#8839ef' },
-                    ui: { dark: '#bcc0cc' },
-                    background: { primary: '#eff1f5' },
-                    border: { default: '#9ca0b0', focused: '#1e66f5' },
-                    status: { error: '#d20f39', success: '#40a02b', warning: '#df8e1d' }
-                });
-                break;
-            case 'dracula':
-                setPreviewTheme({
-                    text: { primary: '#f8f8f2', secondary: '#6272a4', accent: '#bd93f9' },
-                    ui: { dark: '#44475a' },
-                    background: { primary: '#282a36' },
-                    border: { default: '#44475a', focused: '#bd93f9' },
-                    status: { error: '#ff5555', success: '#50fa7b', warning: '#f1fa8c' }
-                });
-                break;
-            case 'nord':
-                setPreviewTheme({
-                    text: { primary: '#D8DEE9', secondary: '#4C566A', accent: '#81A1C1' },
-                    ui: { dark: '#3B4252' },
-                    background: { primary: '#2E3440' },
-                    border: { default: '#434C5E', focused: '#88C0D0' },
-                    status: { error: '#BF616A', success: '#A3BE8C', warning: '#EBCB8B' }
-                });
-                break;
-            case 'dark':
-            default:
-                setPreviewTheme({
-                    text: { primary: '', secondary: '#6C7086', accent: '#CBA6F7' },
-                    ui: { dark: '#45485A' },
-                    background: { primary: '#1E1E2E' },
-                    border: { default: '#6C7086', focused: '#89B4FA' },
-                    status: { error: '#F38BA8', success: '#A6E3A1', warning: '#F9E2AF' }
-                });
-                break;
-        }
-    }, [selectedIndex]);
-
     useInput((input, key) => {
-        if (key.upArrow) setSelectedIndex(p => (p > 0 ? p - 1 : themeList.length - 1));
-        else if (key.downArrow) setSelectedIndex(p => (p < themeList.length - 1 ? p + 1 : 0));
-        else if (key.return) {
-            onSelect(themeList[selectedIndex].id);
-        }
+        if (key.upArrow) setSelectedIndex(p => (p > 0 ? p - 1 : availableThemes.length - 1));
+        else if (key.downArrow) setSelectedIndex(p => (p < availableThemes.length - 1 ? p + 1 : 0));
+        else if (key.return) onSelect(availableThemes[selectedIndex]);
         else if (key.escape || (key.ctrl && input === 'c')) onCancel();
     });
-
     return (
-        <Box borderStyle="double" borderColor={theme.text.accent} width={100} flexDirection="row">
-            {/* LEFT: THEME LIST */}
-            <Box width="45%" flexDirection="column" padding={1} borderRight={true} borderColor={theme.text.accent}>
-                <Box marginBottom={1}>
-                    <Text bold color={theme.text.accent}>Select Theme</Text>
-                </Box>
-                
-                <Box flexDirection="column">
-                    {themeList.map((t: any, i: number) => (
-                        <Text 
-                            key={t.id} 
-                            color={i === selectedIndex ? theme.status.success : theme.text.primary} 
-                            bold={i === selectedIndex}
-                        >
-                            {i === selectedIndex ? '▲' : ' '} {t.displayName}
-                        </Text>
-                    ))}
-                </Box>
-
-                {/* Indikator bawah */}
-                <Box marginTop={1}>
-                    <Text dimColor italic>Use Arrow keys, Enter to select, Esc to close</Text>
-                </Box>
-            </Box>
-
-            {/* RIGHT: PREVIEW */}
-            <Box width="55%" flexDirection="column" padding={1}>
-                <Box marginBottom={1}>
-                    <Text bold dimColor>Preview</Text>
-                </Box>
-
-                {/* Simulasi Kotak Code */}
-                <Box 
-                    borderStyle="round" 
-                    borderColor={previewTheme.border.default} 
-                    padding={1}
-                    flexDirection="column"
-                >
-                    {/* Header Bar */}
-                    <Box marginBottom={1}>
-                        <Text color={previewTheme.status.error}>● </Text>
-                        <Text color={previewTheme.status.warning}>● </Text>
-                        <Text color={previewTheme.status.success}>●</Text>
-                    </Box>
-
-                    {/* Code Lines */}
-                    <Box flexDirection="column">
-                        <Text color={previewTheme.ui.dark}>1 <Text color={previewTheme.text.secondary}># function</Text></Text>
-                        <Text color={previewTheme.text.primary}>2 <Text bold color={previewTheme.text.accent}>def</Text> <Text color={previewTheme.status.success}>fibonacci</Text>(<Text color={previewTheme.text.accent}>n</Text>):</Text>
-                        <Text color={previewTheme.text.primary}>3     <Text bold color={previewTheme.text.accent}>return</Text> <Text color={previewTheme.text.primary}>n</Text></Text>
-                        <Text color={previewTheme.text.primary}>4     ...</Text>
-                    </Box>
-
-                    {/* Diff Preview */}
-                    <Box marginTop={1} paddingTop={1} borderTop={true} borderColor={previewTheme.border.default}>
-                        <Text color={previewTheme.status.error}>- print("Old")</Text>
-                    </Box>
-                    <Box>
-                        <Text color={previewTheme.status.success}>+ print(f"Hello")</Text>
-                    </Box>
-                </Box>
-            </Box>
+        <Box flexDirection="column" borderStyle="double" borderColor={theme.text.accent} padding={1} width={80}>
+            <Text bold color={theme.text.accent}>Select Theme:</Text>
+            {availableThemes.map((t, i) => <Text key={t} color={i === selectedIndex ? theme.status.success : theme.text.primary}>{i === selectedIndex ? '➤ ' : '  '}{t}</Text>)}
         </Box>
     );
 });
@@ -359,8 +227,6 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
             return;
         }
 
-
-
         // C. Suggestion Navigation
         if (suggestions.length > 0) {
             if (key.tab && suggestions[selIdx]) {
@@ -424,9 +290,6 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
         setInput('');
     }, [sendMessage, onDialog, exit, forgetMessages, setHistory]);
 
-    // Get Current Working Directory
-    const cwd = process.cwd();
-
     return (
         <Box flexDirection="column" width="100%" height={isFullScreen ? '100%' : undefined}>
             {/* --- TOP: HISTORY (STATIC) --- */}
@@ -456,7 +319,6 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
                     isLoading={isLoading}
                     resetKey={inputResetKey} // Pass reset trigger
                     showExitNotice={showExitNotice}
-                    cwd={cwd}
                 />
             </Box>
         </Box>

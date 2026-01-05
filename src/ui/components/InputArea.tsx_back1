@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
-import { getGenericConfig, getModelDisplayName } from '../../lib/config.js';
 
 interface InputAreaProps {
   input: string;
@@ -13,8 +12,7 @@ interface InputAreaProps {
   isLoading: boolean;
   resetKey?: number;
   error?: string | null;
-  showExitNotice?: boolean;
-  cwd?: string;
+  showExitNotice?: boolean; // [BARU] Prop untuk status exit
 }
 
 const InputArea: React.FC<InputAreaProps> = ({
@@ -27,32 +25,8 @@ const InputArea: React.FC<InputAreaProps> = ({
   isLoading,
   resetKey = 0,
   error = null,
-  showExitNotice = false,
-  cwd = ''
+  showExitNotice = false // [BARU] Default false
 }) => {
-  // State lokal untuk menyimpan nama model saat ini
-  const [currentModel, setCurrentModel] = useState('Loading...');
-
-  // Fungsi untuk update model
-  const updateModel = () => {
-    try {
-      const config = getGenericConfig();
-      setCurrentModel(getModelDisplayName(config.model));
-    } catch (e) {
-      setCurrentModel('Unknown');
-    }
-  };
-
-  // Ambil model saat mount
-  useEffect(() => {
-    updateModel();
-  }, []);
-
-  // Cek update saat input berubah (saat user mengetik) atau saat loading selesai
-  // Ini menangani kasus user ganti model lewat /model command
-  useEffect(() => {
-    updateModel();
-  }, [input, isLoading]);
   return (
     <Box flexDirection="column" width="100%">
 
@@ -69,6 +43,10 @@ const InputArea: React.FC<InputAreaProps> = ({
         </Box>
       )}
 
+      {/* LOGIKA BARU: 
+          - Jika showExitNotice: Tampilkan warning (Menggantikan Memory)
+          - Jika tidak tapi ada Memory: Tampilkan Memory
+      */}
       {showExitNotice ? (
         <Box>
           <Text color="yellow" bold>⚠ Press Ctrl+C again to exit</Text>
@@ -98,14 +76,6 @@ const InputArea: React.FC<InputAreaProps> = ({
           )}
         </Box>
       </Box>
-
-      {/* Menampilkan CWD (Kiri) dan Model (Kanan) di baris yang sama */}
-      {(cwd || currentModel) && (
-        <Box flexDirection="row" justifyContent="space-between" paddingX={1}>
-          <Text color="gray" dimColor>{cwd}</Text>
-          <Text color="cyan" dimColor>Model: {currentModel}</Text>
-        </Box>
-      )}
 
       {error && (
         <Box paddingX={1}>

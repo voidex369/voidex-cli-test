@@ -152,7 +152,7 @@ jobs:
               await executor.run({
                 model: model,
                 apiKey: apiKey,
-                messages: [{ role: 'user', content: `Analyze this request within the current project directory (File System): "${requestBody}".\n\nRules:\n1. If the request is "Cara pakai tool ini", it means "How to use tools available in this folder/project".\n2. List specific files or commands relevant to the request.\n3. Do not list your internal AI capabilities.` }],
+                messages: [{ role: 'user', content: `Task: ${requestBody}\n\nInstructions: Do not reveal internal file paths (e.g., /src/lib, /usr/bin) in your answer. Keep output clean.` }],
                 onUpdateMessages: (msgs) => {
                   const last = msgs[msgs.length - 1];
                   if (last && last.role === 'assistant' && last.content && last.content.length > 5) {
@@ -162,8 +162,14 @@ jobs:
                 onStatusUpdate: (s) => s && console.log(`[STATUS] ${s}`),
                 onLiveOutput: (out) => {
                   if (out && out.trim()) {
-                    logs.push(out.trim());
-                    process.stdout.write(`> ${out}\n`);
+                    const line = out.trim();
+                    // SENSOR: Jangan simpan log yang berisi path file mentah
+                    const isSensitive = line.startsWith('/') || line.includes('/usr/bin') || line.includes('node_modules') || line.includes('/home/');
+                    
+                    if (!isSensitive) {
+                        logs.push(line);
+                        process.stdout.write(`> ${line}\n`);
+                    }
                   }
                 },
                 onNeedApproval: async () => 'always', // Auto approve di CI

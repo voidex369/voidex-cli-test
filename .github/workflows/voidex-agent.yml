@@ -1,0 +1,188 @@
+name: '⚔️ VoidEx Agent (Headless)'
+
+on:
+  issues:
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  process-request:
+    # Jalankan jika: Issue baru, ATAU komentar yang mengandung '@voidex'
+    if: |
+      github.event_name == 'issues' || 
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@voidex'))
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'write'
+      issues: 'write'
+      pull-requests: 'write'
+    
+    steps:
+      # 1. Checkout Code Repo
+      - name: 'Checkout code'
+        uses: 'actions/checkout@v4'
+
+      # 2. Setup Node.js
+      - name: 'Setup Node.js'
+        uses: 'actions/setup-node@v4'
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. Install Dependencies
+      - name: 'Install Dependencies'
+        run: npm ci
+
+      # 4. Build TypeScript
+      - name: 'Build Project'
+        run: npm run build
+
+      # 5. Extract Context & Run Agent
+      - name: 'Run VoidEx Agent'
+        id: 'run_agent'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.issue.number }}
+          ACTOR: ${{ github.actor }}
+          BODY: ${{ github.event.issue.body || github.event.comment.body }}
+          REPO: ${{ github.repository }}
+          # Model Xiaomi via OpenRouter
+          MODEL: 'xiaomi/mimo-v2-flash:free'
+        run: |
+          # Script Node.js untuk menjalankan LocalExecutor tanpa UI
+          cat <<'EOF' > run-voidex.js
+          const { LocalExecutor } = require('./dist/lib/agent/LocalExecutor.js');
+
+          // Fungsi helper untuk kirim komentar ke GitHub
+          async function postComment(token, repo, issueNumber, body) {
+            const { execSync } = require('child_process');
+            // Escape karakter yang bermasalah untuk JSON payload
+            const escapedBody = body
+              .replace(/\\/g, '\\\\')  // Escape backslash dulu
+              .replace(/"/g, '\\"')     // Escape double quote
+              .replace(/\n/g, '\\n')    // Escape newline
+              .replace(/\r/g, '');      // Remove carriage return
+
+            const cmd = `curl -s -H "Authorization: token ${token}" -H "Accept: application/vnd.github.v3+json" -X POST "https://api.github.com/repos/${repo}/issues/${issueNumber}/comments" -d "{\"body\":\"${escapedBody}\"}"`;
+            
+            try {
+              execSync(cmd, { stdio: 'pipe' }); // pipe output biar ga kotor ke log
+              console.log(`✅ Komentar terkirim ke Issue #${issueNumber}`);
+            } catch (e) {
+              console.error("❌ Gagal mengirim komentar:", e.message);
+            }
+          }
+
+          async function main() {
+            const apiKey = process.env.OPENROUTER_API_KEY;
+            const model = process.env.MODEL;
+            const repo = process.env.REPO;
+            const issueNumber = process.env.ISSUE_NUMBER;
+            const actor = process.env.ACTOR;
+            const token = process.env.GITHUB_TOKEN;
+            let requestBody = process.env.BODY;
+
+            // Bersihkan command trigger (@voidex)
+            requestBody = requestBody.replace(/@voidex/g, '').replace(/@gemini-cli/g, '').trim();
+
+            if (!requestBody || requestBody.length < 3) {
+              console.log("Request body kosong atau terlalu singkat.");
+              return;
+            }
+
+            console.log(`🚀 Mulai Eksekusi: Issue #${issueNumber} | Model: ${model}`);
+            console.log(`📝 Request: ${requestBody.substring(0, 50)}...`);
+
+            const executor = new LocalExecutor();
+            
+            // Buffer untuk menangkap output live (Tool Execution)
+            let logs = [];
+            let finalReport = "";
+
+            const params = {
+              model: model,
+              apiKey: apiKey,
+              messages: [
+                { role: 'user', content: `Objective: ${requestBody}. \nInstructions: Execute tools to solve this. Provide analysis.` }
+              ],
+              onUpdateMessages: (msgs) => {
+                // Tangkap pesan assistant (Plan/Analysis)
+                const lastMsg = msgs[msgs.length - 1];
+                if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content && lastMsg.content.length > 5) {
+                   // Kita simpan sementara, akan di format di akhir
+                   if (!finalReport.includes(lastMsg.content)) {
+                      finalReport = lastMsg.content;
+                   }
+                }
+              },
+              onStatusUpdate: (status) => {
+                if (status) console.log(`[STATUS] ${status}`);
+              },
+              onLiveOutput: (output) => {
+                // Tangkap output shell command atau file read
+                if (output && output.trim().length > 0) {
+                  logs.push(output.trim());
+                  process.stdout.write(`> ${output}\n`);
+                }
+              },
+              onNeedApproval: async (info) => {
+                console.log(`[SECURITY] Auto-approved: ${info.name} (Risk: ${info.riskLevel})`);
+                return 'always';
+              },
+              onToolWhitelisted: (name) => console.log(`[TOOLS] Whitelisted: ${name}`),
+              onError: (error) => {
+                console.error(`[ERROR] ${error}`);
+                logs.push(`[ERROR] ${error}`);
+              },
+              allowedTools: [
+                'run_shell_command', 'read_file', 'write_file', 'search_file_content', 
+                'google_web_search', 'web_fetch', 'list_directory', 'glob', 'replace'
+              ],
+              iterationLimit: 6 // Batasi iterasi biar ga habiskan quota
+            };
+
+            try {
+              await executor.run(params);
+              
+              // Bangun Laporan Akhir
+              let report = `## 🤖 VoidEx Agent Report\n\n`;
+              report += `**Target:** \`${requestBody}\`\n`;
+              report += `**Model:** \`${model}\`\n\n`;
+              
+              // Sisipkan Analisis dari LLM
+              if (finalReport && finalReport.trim().length > 0) {
+                report += `### 🧠 Analisis\n${finalReport}\n\n`;
+              }
+
+              // Sisipkan Logs Eksekusi (Shell/File)
+              if (logs.length > 0) {
+                report += `### 📜 Output Log\n`;
+                report += `\`\`\`bash\n`;
+                report += logs.join('\n').substring(0, 15000); // Batasi panjang logs
+                report += `\n\`\`\`\n`;
+              } else {
+                report += `### 📜 Output Log\n*No command output generated.*\n`;
+              }
+
+              report += `\n---\n*Sistem berjalan di GitHub Actions menggunakan ${model} via OpenRouter.*`;
+
+              // Kirim ke GitHub
+              await postComment(token, repo, issueNumber, report);
+              
+            } catch (err) {
+              console.error("Crash Utama:", err);
+              const errorMsg = `## 🤖 VoidEx Agent Crash\n\n\`\`\`\n${err.message}\n\`\`\`\n\nMohon cek logs workflow.`;
+              await postComment(token, repo, issueNumber, errorMsg);
+            }
+          }
+
+          main();
+          EOF
+
+          node run-voidex.js

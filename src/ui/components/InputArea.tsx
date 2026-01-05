@@ -1,0 +1,119 @@
+import React, { useState, useEffect } from 'react';
+import { Box, Text } from 'ink';
+import TextInput from 'ink-text-input';
+import { getGenericConfig, getModelDisplayName } from '../../lib/config.js';
+
+interface InputAreaProps {
+  input: string;
+  setInput: (val: string) => void;
+  onSubmit: (val: string) => void;
+  suggestions: any[];
+  selectedIndex: number;
+  hasMemory: boolean;
+  isLoading: boolean;
+  resetKey?: number;
+  error?: string | null;
+  showExitNotice?: boolean;
+  cwd?: string;
+}
+
+const InputArea: React.FC<InputAreaProps> = ({
+  input,
+  setInput,
+  onSubmit,
+  suggestions,
+  selectedIndex,
+  hasMemory,
+  isLoading,
+  resetKey = 0,
+  error = null,
+  showExitNotice = false,
+  cwd = ''
+}) => {
+  // State lokal untuk menyimpan nama model saat ini
+  const [currentModel, setCurrentModel] = useState('Loading...');
+
+  // Fungsi untuk update model
+  const updateModel = () => {
+    try {
+      const config = getGenericConfig();
+      setCurrentModel(getModelDisplayName(config.model));
+    } catch (e) {
+      setCurrentModel('Unknown');
+    }
+  };
+
+  // Ambil model saat mount
+  useEffect(() => {
+    updateModel();
+  }, []);
+
+  // Cek update saat input berubah (saat user mengetik) atau saat loading selesai
+  // Ini menangani kasus user ganti model lewat /model command
+  useEffect(() => {
+    updateModel();
+  }, [input, isLoading]);
+  return (
+    <Box flexDirection="column" width="100%">
+
+      {suggestions.length > 0 && (
+        <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1} marginBottom={1} width="100%">
+          {suggestions.map((s, i) => (
+            <Box key={s.cmd} flexDirection="row" width="100%">
+              <Text color={i === selectedIndex ? 'cyan' : 'white'} bold={i === selectedIndex}>
+                {i === selectedIndex ? '> ' : '  '}{s.cmd}
+              </Text>
+              <Text dimColor> - {s.desc}</Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {showExitNotice ? (
+        <Box>
+          <Text color="yellow" bold>⚠ Press Ctrl+C again to exit</Text>
+        </Box>
+      ) : hasMemory ? (
+        <Box>
+          <Text color="gray">🧠 Sovereign Memory Active</Text>
+        </Box>
+      ) : null}
+
+      <Box borderStyle="single" borderColor={isLoading ? 'yellow' : 'green'} paddingX={1} width="100%">
+        <Box marginRight={1}>
+          <Text bold color={isLoading ? 'yellow' : 'green'}>❯</Text>
+        </Box>
+
+        <Box flexGrow={1}>
+          {isLoading ? (
+            <Text color="gray">Sovereign is thinking...</Text>
+          ) : (
+            <TextInput
+              key={resetKey}
+              value={input}
+              onChange={setInput}
+              onSubmit={onSubmit}
+              placeholder="Type or / for commands..."
+            />
+          )}
+        </Box>
+      </Box>
+
+      {/* Menampilkan CWD (Kiri) dan Model (Kanan) di baris yang sama */}
+      {(cwd || currentModel) && (
+        <Box flexDirection="row" justifyContent="space-between" paddingX={1}>
+          <Text color="gray" dimColor>{cwd}</Text>
+          <Text color="cyan" dimColor>Model: {currentModel}</Text>
+        </Box>
+      )}
+
+      {error && (
+        <Box paddingX={1}>
+          <Text color="red" bold italic>✖ Error: {error}</Text>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+export default React.memo(InputArea);

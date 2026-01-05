@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build Output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment Variables (CRITICAL)
+.env
+.env.local
+.env.production
+.env.development
+.secrets
+
+# Logs
+*.log
+logs/
+**/.logs/
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary Files (Project Specific)
+12.txt
+run-voidex.js
+package-lock.json_back
+src/lib/agent/LocalExecutor.ts_back
+src/ui/components/HistoryViewport.tsx_back
+src/ui/components/MessageItem.tsx_back
+src/ui/components/shared/VirtualizedList.tsx_back
+
+# Optional: Ignore specific heavy logs if they exist
+logs/
+telemetry.log
+.gemini/
+
+# Python related (just in case)
+__pycache__/
+*.pyc

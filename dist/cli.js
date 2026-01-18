@@ -1,18 +1,20 @@
 #!/usr/bin/env node
-import { jsx as _jsx } from "react/jsx-runtime";
+// Polyfill window for Node.js
+global.window = global;
+import React from 'react';
 import { render } from 'ink';
 import meow from 'meow';
 import App from './ui/App.js';
 const cli = meow(`
-	Usage
-	  $ voidex
+\tUsage
+\t  $ voidex
 
-	Options
-		--name  Your name
+\tOptions
+\t\t--name  Your name
 
-	Examples
-	  $ voidex --name=VoidEx
-	  Hello, VoidEx
+\tExamples
+\t  $ voidex --name=VoidEx
+\t  Hello, VoidEx
 `, {
     importMeta: import.meta,
     flags: {
@@ -21,4 +23,4 @@ const cli = meow(`
         },
     },
 });
-render(_jsx(App, {}), { exitOnCtrlC: false });
+render(React.createElement(App, {}), { exitOnCtrlC: false });

@@ -1,18 +1,8 @@
-declare const window: any;
-declare const global: any;
-
-const getGlobal = () => {
-    if (typeof globalThis !== 'undefined') return globalThis;
-    if (typeof global !== 'undefined') return global;
-    return {};
-};
-
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import { useChat } from '../hooks/useChat.js';
-import { getAvailableModels, saveModel, saveApiKey, getApiKey, getModelDisplayName, listChats, deleteChat, loadChat } from '../../lib/config.js';
+import { getAvailableModels, saveModel, saveApiKey, getApiKey, getModelDisplayName } from '../../lib/config.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import HistoryViewport from './HistoryViewport.js';
 import StatusArea from './StatusArea.js';
@@ -238,6 +228,8 @@ const AuthDialog = React.memo(({ onSave, onCancel, currentKey }: any) => {
             <Box marginTop={0}>
                 <Text dimColor italic>New key will replace the old one. Leave empty to keep current.</Text>
             </Box>
+\
+// --- NEW: Interactive Session Picker ---\nconst SessionPicker = React.memo(({ mode, onSelect, onCancel, sessions }: { mode: 'resume' | 'delete', onSelect: (session: string) => void, onCancel: () => void, sessions: string[] }) => {\n    const [selectedIndex, setSelectedIndex] = useState(0);\n    const [filter, setFilter] = useState('');\n\n    const filtered = useMemo(() => \n        sessions.filter(s => s.toLowerCase().includes(filter.toLowerCase())),\n        [sessions, filter]\n    );\n\n    useInput((input, key) => {\n        if (filtered.length === 0) {\n            if (key.escape || (key.ctrl && input === 'c')) onCancel();\n            return;\n        }\n\n        if (key.upArrow) setSelectedIndex(p => (p > 0 ? p - 1 : filtered.length - 1));\n        else if (key.downArrow) setSelectedIndex(p => (p < filtered.length - 1 ? p + 1 : 0));\n        else if (key.return) onSelect(filtered[selectedIndex]);\n        else if (key.escape || (key.ctrl && input === 'c')) onCancel();\n    });\n\n    const borderColor = mode === 'resume' ? 'green' : 'red';\n    const title = mode === 'resume' ? 'RESUME SESSION' : 'DELETE SESSION';\n\n    return (\n        <Box flexDirection="column" borderStyle="double" borderColor={borderColor} padding={1} width={80}>\n            <Text bold color={borderColor}>{title} (Esc to cancel):</Text>\n            \n            <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1} marginBottom={1}>\n                <TextInput value={filter} onChange={setFilter} placeholder="Filter sessions..." />\n            </Box>\n\n            {filtered.length === 0 ? (\n                <Text color="yellow">No sessions found.</Text>\n            ) : (\n                <Box flexDirection="column">\n                    {filtered.map((s, i) => {\n                        const isSel = i === selectedIndex;\n                        return (\n                            <Text key={s} color={isSel ? borderColor : 'white'} bold={isSel}>\n                                {isSel ? '➤ ' : '  '}{s}\n                            </Text>\n                        );\n                    })}\n                </Box>\n            )}\n\n            <Box marginTop={1}>\n                <Text dimColor italic>Use arrow keys to navigate, Enter to {mode}</Text>\n            </Box>\n        </Box>\n    );\n});
         </Box>
     );
 });
@@ -258,23 +250,6 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
     const [selIdx, setSelIdx] = useState(0);
     const [apprIdx, setApprIdx] = useState(0);
     const [histIdx, setHistIdx] = useState(-1);
-
-    // [NEW] Session selection state
-    const [sessionMode, setSessionMode] = useState<string | null>(null);
-    const [sessionCount, setSessionCount] = useState(0);
-    
-    useEffect(() => {
-        const check = () => {
-            const mode = (window as any).__sessionMode;
-            const list = (window as any).__sessionList;
-            setSessionMode(mode);
-            setSessionCount(list ? list.length : 0);
-        };
-        check();
-        const interval = setInterval(check, 100);
-        return () => clearInterval(interval);
-    }, [input]);
-
 
     // [FIX] State untuk memaksa kursor pindah ke ujung
     const [inputResetKey, setInputResetKey] = useState(0);
@@ -431,8 +406,28 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
     const handleSend = useCallback((v: string) => {
         const trimmed = v.trim();
         if (!trimmed) return;
+
+        // Handle Commands Lokal (UI Side)
+        if (trimmed === '/model' || trimmed === '/auth' || trimmed === '/theme') {
+            onDialog(trimmed.slice(1));
+            setInput(''); return;
+        }
+        if (trimmed.startsWith('/forget')) {
+            forgetMessages(parseInt(trimmed.split(' ')[1]) || 1);
+            setInput(''); return;
+        }
+        if (trimmed === '/exit') { exit(); return; }
         
-                // Default: Kirim ke AI atau handler umum
+        // [PERBAIKAN] Handle /clear di sini agar langsung efektif
+        if (trimmed === '/clear') {
+            // Reset input dulu agar bersih
+            setInput('');
+            // Kirim command ke hook untuk di-proses (menghapus state messages)
+            sendMessage(trimmed);
+            return;
+        }
+
+        // Default: Kirim ke AI atau handler umum
         sendMessage(trimmed);
         setHistory((prev: string[]) => {
             const last = prev[prev.length - 1];
@@ -475,8 +470,6 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
                     resetKey={inputResetKey} // Pass reset trigger
                     showExitNotice={showExitNotice}
                     cwd={cwd}
-                        sessionMode={sessionMode}
-                        sessionCount={sessionCount}
                 />
             </Box>
         </Box>

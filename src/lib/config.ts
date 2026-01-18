@@ -118,48 +118,158 @@ export function saveApiKey(apiKey: string): void {
 
 // --- MODEL MANAGEMENT ---
 
+// Model template (referensi untuk custom)
+export const MODEL_TEMPLATES = [
+    'xiaomi/mimo-v2-flash:free',
+    'alibaba/tongyi-deepresearch-30b-a3b:free',
+    'allenai/olmo-3-32b-think:free',
+    'allenai/olmo-3.1-32b-think:free',
+    'anthropic/claude-3-opus',
+    'anthropic/claude-3-sonnet',
+    'arcee-ai/trinity-mini:free',
+    'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+    'nousresearch/hermes-3-llama-3.1-405b:free',
+    'mistralai/mixtral-8x22b-instruct',
+    'liquid/lfm-40b:free',
+    'google/gemini-2.0-flash-exp:free',
+    'google/gemini-2.5-flash-image',
+    'google/gemini-2.5-flash-lite',
+    'meta-llama/llama-3-70b-instruct',
+    'mistral/mistral-large',
+    'mistralai/devstral-2512:free',
+    'moonshotai/kimi-k2:free',
+    'nex-agi/deepseek-v3.1-nex-n1:free',
+    'nvidia/nemotron-3-nano-30b-a3b:free',
+    'openai/gpt-4o',
+    'openai/gpt-oss-120b:free',
+    'qwen/qwen3-coder:free',
+    'z-ai/glm-4.5-air:free'
+];
+
+// Ambil daftar model dari config custom + templates
 export function getAvailableModels(): string[] {
-    return [
-        'xiaomi/mimo-v2-flash:free',
-        'alibaba/tongyi-deepresearch-30b-a3b:free',
-        'allenai/olmo-3-32b-think:free',
-        'allenai/olmo-3.1-32b-think:free',
-        'anthropic/claude-3-opus',
-        'anthropic/claude-3-sonnet',
-        'arcee-ai/trinity-mini:free',
+    ensureConfigDir();
+    const customModelsPath = path.join(CONFIG_DIR, 'custom-models.json');
+    
+    let customModels: string[] = [];
+    if (fs.existsSync(customModelsPath)) {
+        try {
+            const data = fs.readFileSync(customModelsPath, 'utf-8');
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed)) {
+                customModels = parsed;
+            }
+        } catch (e) {
+            // Ignore parsing errors
+        }
+    }
+    
+    // Gabungkan templates + custom models (hindari duplikat)
+    const allModels = [...MODEL_TEMPLATES, ...customModels];
+    return [...new Set(allModels)]; // Remove duplicates
+}
 
-        // --- [UNCENSORED] Models for Security Research ---
-        'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', // [UNCENSORED]
-        'nousresearch/hermes-3-llama-3.1-405b:free', // [UNCENSORED]
-        'mistralai/mixtral-8x22b-instruct', // [UNCENSORED]
-        'liquid/lfm-40b:free', // [UNCENSORED]
+// Simpan model custom ke file terpisah
+export function saveCustomModel(model: string): boolean {
+    ensureConfigDir();
+    const customModelsPath = path.join(CONFIG_DIR, 'custom-models.json');
+    
+    // Validasi format model (harus mengandung provider/model)
+    if (!model || !model.includes('/')) {
+        return false;
+    }
+    
+    let customModels: string[] = [];
+    if (fs.existsSync(customModelsPath)) {
+        try {
+            const data = fs.readFileSync(customModelsPath, 'utf-8');
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed)) {
+                customModels = parsed;
+            }
+        } catch (e) {
+            // Ignore
+        }
+    }
+    
+    // Tambahkan jika belum ada
+    if (!customModels.includes(model)) {
+        customModels.push(model);
+        fs.writeFileSync(customModelsPath, JSON.stringify(customModels, null, 2), 'utf-8');
+        return true;
+    }
+    
+    return false;
+}
 
-        'google/gemini-2.0-flash-exp:free',
-        'google/gemini-2.5-flash-image',
-        'google/gemini-2.5-flash-image-preview',
-        'google/gemini-2.5-flash-lite',
-        'google/gemini-2.5-flash-lite-preview-09-2025',
-        'google/gemini-2.5-flash-preview-09-2025',
-        'google/gemini-3-flash-preview',
-        'google/gemini-3-pro-image-preview',
-        'google/gemini-3-pro-preview',
-        'google/gemini-pro-1.5',
-        'kwaipilot/kat-coder-pro:free',
-        'meta-llama/llama-3-70b-instruct',
-        'mistral/mistral-large',
-        'mistralai/devstral-2512:free',
-        'moonshotai/kimi-k2:free',
-        'nex-agi/deepseek-v3.1-nex-n1:free',
-        'nvidia/nemotron-3-nano-30b-a3b:free',
-        'nvidia/nemotron-nano-12b-v2-vl:free',
-        'nvidia/nemotron-nano-9b-v2:free',
-        'openai/gpt-4o',
-        'openai/gpt-oss-120b:free',
-        'openai/gpt-oss-20b:free',
-        'qwen/qwen3-coder:free',
-        'tngtech/tng-r1t-chimera:free',
-        'z-ai/glm-4.5-air:free'
-    ];
+// Hapus model custom
+export function removeCustomModel(model: string): boolean {
+    ensureConfigDir();
+    const customModelsPath = path.join(CONFIG_DIR, 'custom-models.json');
+    
+    if (!fs.existsSync(customModelsPath)) {
+        return false;
+    }
+    
+    try {
+        const data = fs.readFileSync(customModelsPath, 'utf-8');
+        let customModels: string[] = JSON.parse(data);
+        
+        const initialLength = customModels.length;
+        customModels = customModels.filter(m => m !== model);
+        
+        if (customModels.length !== initialLength) {
+            fs.writeFileSync(customModelsPath, JSON.stringify(customModels, null, 2), 'utf-8');
+            return true;
+        }
+        
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Cek apakah model valid
+export function isValidModel(model: string): boolean {
+    const availableModels = getAvailableModels();
+    return availableModels.includes(model);
+}
+
+// Dapatkan model saat ini dengan info lokasi custom
+export function getCurrentModelInfo(): { model: string; location: string; isCustom: boolean } {
+    const config = getGenericConfig();
+    const model = config.model;
+    
+    // Cek apakah model dari templates
+    const isTemplate = MODEL_TEMPLATES.includes(model);
+    
+    // Cek apakah model dari custom list
+    const customModelsPath = path.join(CONFIG_DIR, 'custom-models.json');
+    let isCustom = false;
+    
+    if (fs.existsSync(customModelsPath)) {
+        try {
+            const data = fs.readFileSync(customModelsPath, 'utf-8');
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed) && parsed.includes(model)) {
+                isCustom = true;
+            }
+        } catch (e) {
+            // Ignore
+        }
+    }
+    
+    return {
+        model: model,
+        location: '~/.voidex-cli/config.json',
+        isCustom: isCustom || !isTemplate
+    };
+}
+
+// Fungsi tambahan untuk validasi model
+export function validateModelFormat(model: string): boolean {
+    if (!model || typeof model !== 'string') return false;
+    return model.includes('/') && model.length > 3;
 }
 
 // [FIXED] Hanya satu fungsi getModelDisplayName & Nama Model Full

@@ -4,7 +4,7 @@
  */
 
 export const debugLogger = {
-    log: (...args: any[]) => { }, // console.log('[DEBUG]', ...args), 
+    log: (...args: any[]) => { },  
     warn: (...args: any[]) => console.warn('[WARN]', ...args),
     error: (...args: any[]) => console.error('[ERROR]', ...args),
 };

@@ -1,16 +1,9 @@
-// Polyfill window for Node.js if not exists
-if (typeof window === 'undefined') {
-    (global as any).window = global;
-}
-
-declare const window: any;
-declare const globalThis: any;
-
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createClient } from '../../lib/openrouter.js';
 import {
     getGenericConfig, getApiKey, getAvailableModels, saveModel, saveApiKey,
-    saveChat, loadChat, listChats, deleteChat, exportChat
+    saveChat, loadChat, listChats, deleteChat, exportChat,
+    saveChatSession, loadChatSession, listSessionsWithTimestamp
 } from '../../lib/config.js';
 import { toolsDefinition, toolRegistry, killActiveProcess } from '../../lib/tools.js';
 import { getSystemContext } from '../../lib/context.js';
@@ -20,24 +13,13 @@ import path from 'path';
 import { LocalExecutor } from '../../lib/agent/LocalExecutor.js';
 
 import { Message, PendingToolCall } from '../../types/index.js';
-// [UPDATE] Import appendMemory di sini
 import { truncateForRAM, pruneHistoryByChars, appendMemory } from '../../utils/memory.js';
 
-// --- SHADOW PERSISTENCE LAYER ---
 let shadowMessages: Message[] = [{ id: 'welcome', role: 'system', name: 'welcome_msg', content: '' }];
 let shadowAllowedTools: string[] = [];
 let shadowHistory: string[] = [];
 
-const getGlobal = () => {
-    if (typeof globalThis !== 'undefined') return globalThis;
-    if (typeof global !== 'undefined') return global;
-    return {};
-};
-
 export function useChat() {
-
-// --- INTERACTIVE SESSION SELECTION STATE (FILE SCOPE) ---
-
     const config = getGenericConfig();
     const currentApiKey = getApiKey();
 
@@ -54,7 +36,6 @@ export function useChat() {
 
     const [liveToolOutput, setLiveToolOutput] = useState<string>('');
     const [history, setHistory] = useState<string[]>(shadowHistory);
-
     const currentRequestIdRef = useRef<number>(0);
 
     useEffect(() => {
@@ -71,11 +52,10 @@ export function useChat() {
         allowedToolsRef.current = allowedToolsForSession;
     }, [allowedToolsForSession]);
 
-    // --- UPDATE CHECKER ---
     useEffect(() => {
         if (Math.random() > 0.8) {
             setTimeout(() => {
-                setMessages(prev => [...prev, { id: 'sys-update-' + Date.now(), role: 'system', content: '[NOTICE] A new version of VoidEx CLI is available! Run `git pull` to update.' }]);
+                setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: '[NOTICE] A new version of VoidEx CLI is available! Run `git pull` to update.' }]);
             }, 3000);
         }
     }, []);
@@ -83,17 +63,16 @@ export function useChat() {
     const approvalResolver = useRef<((choice: 'allow' | 'deny' | 'always') => void) | null>(null);
     const abortController = useRef<AbortController | null>(null);
 
-    // --- AUTO-SAVE ---
     useEffect(() => {
         const timeout = setTimeout(() => {
             if (messages.length > 2) {
                 try {
-                    saveChat('autosave', messages);
+                    saveChatSession('autosave', messages, history);
                 } catch (e) { }
             }
         }, 2000);
         return () => clearTimeout(timeout);
-    }, [messages]);
+    }, [messages, history]);
 
     const executorRef = useRef<LocalExecutor>(new LocalExecutor());
 
@@ -138,28 +117,6 @@ export function useChat() {
         const content = rawContent.trim();
         if (!content) return;
 
-        // [NEW] Handle session selection by number FIRST
-        
-        // Check if user wants to CANCEL session selection
-        const sessionModeActive = (window as any).__sessionMode;
-        if (sessionModeActive && (content === '' || content.toLowerCase() === 'cancel')) {
-            delete (window as any).__sessionMode;
-            delete (window as any).__sessionList;
-            setAgentStatus(null);
-            setMessages(prev => [...prev, {
-                id: 'sys-' + Date.now(),
-                role: 'system',
-                content: '❌ Session selection cancelled.'
-            }]);
-            return;
-        }
-        
-        const handledBySelection = handleSessionSelection(content);
-        
-        if (handledBySelection) {
-            return; // Sudah diproses, tidak perlu lanjut
-        }
-
         const currentConfig = getGenericConfig();
         const latestApiKey = getApiKey();
 
@@ -196,38 +153,58 @@ export function useChat() {
             const sub = parts[1]?.toLowerCase();
             const arg = parts[2];
             const currentHistory = messagesRef.current;
+            const currentCommandHistory = history;
 
             if (sub === 'save' && arg) {
-                saveChat(arg, currentHistory);
-                setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat saved as "${arg}"` }]);
+                saveChatSession(arg, currentHistory, currentCommandHistory);
+                setMessages(prev => [...prev, { 
+                    id: 'sys-' + Date.now(), 
+                    role: 'system', 
+                    content: `Chat saved as \"${arg}\" (messages: ${currentHistory.length}, history: ${currentCommandHistory.length})` 
+                }]);
                 return;
             }
             if (sub === 'resume') {
-                if (arg) {
-                    const loaded = loadChat(arg);
-                    if (loaded.length > 0) { 
-                        shadowMessages = loaded; 
-                        setMessages(loaded); 
-                    } else { 
-                        setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]); 
-                    }
-                } else {
-                    // TANPA ARGUMEN - SHOW LIST
-                    const list = listChats();
-                    if (list.length === 0) {
-                        setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: 'No saved sessions found.' }]);
-                    } else {
-                        // SIMPAN LIST UNTUK UI SELECTION
-                        (window as any).__sessionList = list;
-                        (window as any).__sessionMode = 'resume';
-                        
-                        setAgentStatus(`Pilih nomor (1-${list.length}) - ketik angka, atau 'cancel' untuk keluar`);
+                if (!arg) {
+                    const sessions = listSessionsWithTimestamp();
+                    if (sessions.length === 0) {
                         setMessages(prev => [...prev, { 
                             id: 'sys-' + Date.now(), 
                             role: 'system', 
-                            content: `Available Sessions:\n${list.map((s, i) => `${i+1}. ${s}`).join('\n')}\n\nSilakan pilih nomor (1-${list.length})` 
+                            content: 'No saved sessions found. Use /chat save <name> to create one.' 
+                        }]);
+                    } else {
+                        const listText = sessions.map((s, i) => 
+                            `${i + 1}. ${s.name} - ${s.date} (${(s.size / 1024).toFixed(1)}KB)`
+                        ).join('\n');
+                        
+                        setMessages(prev => [...prev, { 
+                            id: 'sys-' + Date.now(), 
+                            role: 'system', 
+                            content: `📝 Available Sessions:\n\n${listText}\n\n💡 Tip: Use /chat resume <name> to resume a session` 
                         }]);
                     }
+                    return;
+                }
+                
+                const session = loadChatSession(arg);
+                
+                if (session.messages.length > 0) { 
+                    shadowMessages = session.messages; 
+                    setMessages(session.messages); 
+                    shadowHistory = session.history;
+                    setHistory(session.history);
+                    setMessages(prev => [...prev, { 
+                        id: 'sys-' + Date.now(), 
+                        role: 'system', 
+                        content: `Session \"${arg}\" resumed. Messages: ${session.messages.length}, History: ${session.history.length} entries loaded.` 
+                    }]);
+                } else { 
+                    setMessages(prev => [...prev, { 
+                        id: 'sys-' + Date.now(), 
+                        role: 'system', 
+                        content: `Chat \"${arg}\" not found or empty.` 
+                    }]); 
                 }
                 return;
             }
@@ -238,27 +215,44 @@ export function useChat() {
                 return;
             }
             if (sub === 'delete') {
-                if (arg) {
-                    const success = deleteChat(arg);
-                    const msg = success ? `Chat "${arg}" deleted.` : `Chat "${arg}" not found.`;
-                    setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: msg }]);
-                } else {
-                    // TANPA ARGUMEN - SHOW LIST
-                    const list = listChats();
-                    if (list.length === 0) {
-                        setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: 'No saved sessions found.' }]);
-                    } else {
-                        // SIMPAN LIST UNTUK UI SELECTION
-                        (window as any).__sessionList = list;
-                        (window as any).__sessionMode = 'delete';
-                        
-                        setAgentStatus(`Pilih nomor (1-${list.length}) - ketik angka, atau 'cancel' untuk keluar`);
+                if (!arg) {
+                    // Tampilkan list semua session dengan timestamp (akan di-handle oleh Chat.tsx)
+                    // TAPI perlu return list juga untuk display
+                    const sessions = listSessionsWithTimestamp();
+                    if (sessions.length === 0) {
                         setMessages(prev => [...prev, { 
                             id: 'sys-' + Date.now(), 
                             role: 'system', 
-                            content: `Available Sessions to Delete:\n${list.map((s, i) => `${i+1}. ${s}`).join('\n')}\n\nSilakan pilih nomor (1-${list.length})` 
+                            content: 'No saved sessions found. Use /chat save <name> to create one.' 
+                        }]);
+                    } else {
+                        const listText = sessions.map((s, i) => 
+                            `${i + 1}. ${s.name} - ${s.date} (${(s.size / 1024).toFixed(1)}KB)`
+                        ).join('\n');
+                        
+                        setMessages(prev => [...prev, { 
+                            id: 'sys-' + Date.now(), 
+                            role: 'system', 
+                            content: `📝 Available Sessions to Delete:\n\n${listText}\n\n💡 Type the number to delete (1-${sessions.length}) or 'cancel' in the next input.` 
                         }]);
                     }
+                    return;
+                }
+                
+                // ✅ DELETE FULL SESSION
+                const success = deleteChat(arg);
+                if (success) {
+                    setMessages(prev => [...prev, { 
+                        id: 'sys-' + Date.now(), 
+                        role: 'system', 
+                        content: `✅ Session \"${arg}\" deleted successfully.` 
+                    }]);
+                } else {
+                    setMessages(prev => [...prev, { 
+                        id: 'sys-' + Date.now(), 
+                        role: 'system', 
+                        content: `❌ Session \"${arg}\" not found.` 
+                    }]);
                 }
                 return;
             }
@@ -267,7 +261,7 @@ export function useChat() {
                 setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat shared to: ${arg}` }]);
                 return;
             }
-            const usage = `Usage: /chat [save <id> | resume [id] | list | delete [id] | share <file>]`;
+            const usage = `Usage: /chat [save <id> | resume <id> | list | delete <id> | share <file>]`;
             setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: usage }]);
             return;
         }
@@ -282,7 +276,8 @@ export function useChat() {
             return;
         }
         if (lowerContent === '/help') {
-            setMessages(prev => [...prev, { id: 'user-' + Date.now(), role: 'user', content: '/help' }, { id: 'sys-' + Date.now(), role: 'system', content: 'HELP_MENU_ACTIVE', name: 'help_menu' }]);
+            const helpContent = `VoidEx CLI - Help Menu\n\n📊 Stats Commands:\n- /stats → System stats (CPU, RAM, Model)\n- /stats session → Session metrics (messages, tokens)\n- /stats model → Model info (name, location, status)\n\n🔧 Management:\n- /model → Select/change AI model\n- /auth → Set API key\n- /theme → Change UI theme\n- /chat [save|resume|list|delete|share] → Session management\n\n🧹 Chat:\n- /clear → Clear conversation\n- /forget [n] → Remove last N exchanges\n- /tools → List available tools\n- /help → Show this menu\n- /about → Version info\n- /exit → Quit application`;
+            setMessages(prev => [...prev, { id: 'user-' + Date.now(), role: 'user', content: '/help' }, { id: 'sys-' + Date.now(), role: 'system', content: helpContent }]);
             return;
         }
         if (lowerContent === '/stats') {
@@ -347,23 +342,19 @@ export function useChat() {
                 signal
             });
 
-            // [BARU] LOGIC CEK MEMORY SAVE
-            // Kita cek pesan terakhir, apakah mengandung kode rahasia dari System Prompt?
             const finalMessages = messagesRef.current;
             const lastMsg = finalMessages[finalMessages.length - 1];
 
             if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
-                // Regex: Cari baris yang diawali MEMORY_SAVE:
                 const memoryMatch = lastMsg.content.match(/MEMORY_SAVE:\s*(.*)/);
                 if (memoryMatch && memoryMatch[1]) {
                     const fact = memoryMatch[1].trim();
                     const success = appendMemory(fact);
 
-                    // Kalau sukses, kasih tau user dengan pesan sistem yang keren
                     if (success) {
                         setMessages(prev => [
                             ...prev,
-                            { id: 'sys-mem-' + Date.now(), role: 'system', content: `[MEMORY SAVED] "${fact}" to Sovereign Storage.` }
+                            { id: 'sys-mem-' + Date.now(), role: 'system', content: `[MEMORY SAVED] \"${fact}\" to Sovereign Storage.` }
                         ]);
                     }
                 }
@@ -392,71 +383,6 @@ export function useChat() {
             shadowMessages = nextMsgs;
             return nextMsgs;
         });
-    }, []);
-
-    // --- INTERACTIVE SESSION SELECTION ---
-    // Handle angka selection dari user input
-        // Handle angka selection dari user input
-    const handleSessionSelection = useCallback((input: string): boolean => {
-
-        const selectionMode = (window as any).__sessionMode;
-        const sessionList = (window as any).__sessionList;
-        
-        if (!selectionMode || !sessionList) return false;
-        
-        // Cek apakah input adalah angka
-        const isNum = /^[0-9]+$/.test(input);
-        if (!isNum) return false;
-        
-        const index = parseInt(input) - 1;
-        
-        // VALID INPUT
-        if (index >= 0 && index < sessionList.length) {
-            const sessionName = sessionList[index];
-            
-            if (selectionMode === 'resume') {
-                const loaded = loadChat(sessionName);
-                if (loaded.length > 0) {
-                    shadowMessages = loaded;
-                    setMessages(loaded);
-                    setMessages(prev => [...prev, { 
-                        id: 'sys-' + Date.now(), 
-                        role: 'system', 
-                        content: `✅ Resumed session: ${sessionName}` 
-                    }]);
-                }
-            } else if (selectionMode === 'delete') {
-                const success = deleteChat(sessionName);
-                if (success) {
-                    setMessages(prev => [...prev, { 
-                        id: 'sys-' + Date.now(), 
-                        role: 'system', 
-                        content: `✅ Deleted session: ${sessionName}` 
-                    }]);
-                    const updated = listChats();
-                    (window as any).__sessionList = updated;
-                    if (updated.length === 0) {
-                        (window as any).__sessionList = [];
-                        (window as any).__sessionMode = null;
-                    }
-                }
-            }
-            
-            (window as any).__sessionList = [];
-            (window as any).__sessionMode = null;
-        setTimeout(() => setAgentStatus(null), 50);  // Force update after render
-        setTimeout(() => setAgentStatus(null), 100); // Double ensure
-            return true;
-        }
-        
-        // INVALID INPUT (angka keluar range)
-        setMessages(prev => [...prev, { 
-            id: 'sys-' + Date.now(), 
-            role: 'system', 
-            content: `❌ Nomor tidak valid. Silakan pilih 1-${sessionList.length}` 
-        }]);
-        
-        return true;
     }, []);
 
     return {

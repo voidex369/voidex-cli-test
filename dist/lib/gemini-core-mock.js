@@ -3,7 +3,7 @@
  * Provides types and dummy functions to satisfy Gemini-CLI UI dependencies.
  */
 export const debugLogger = {
-    log: (...args) => { }, // console.log('[DEBUG]', ...args), 
+    log: (...args) => { },
     warn: (...args) => console.warn('[WARN]', ...args),
     error: (...args) => console.error('[ERROR]', ...args),
 };

@@ -1,29 +1,30 @@
 #!/usr/bin/env node
+
+// Polyfill window for Node.js
+(global as any).window = global;
+
 import React from 'react';
 import { render } from 'ink';
 import meow from 'meow';
 import App from './ui/App.js';
 
-const cli = meow(
-    `
-	Usage
-	  $ voidex
+const cli = meow(`
+\tUsage
+\t  $ voidex
 
-	Options
-		--name  Your name
+\tOptions
+\t\t--name  Your name
 
-	Examples
-	  $ voidex --name=VoidEx
-	  Hello, VoidEx
-`,
-    {
-        importMeta: import.meta,
-        flags: {
-            name: {
-                type: 'string',
-            },
+\tExamples
+\t  $ voidex --name=VoidEx
+\t  Hello, VoidEx
+`, {
+    importMeta: import.meta,
+    flags: {
+        name: {
+            type: 'string',
         },
-    }
-);
+    },
+});
 
-render(<App />, { exitOnCtrlC: false });
+render(React.createElement(App, {}), { exitOnCtrlC: false });

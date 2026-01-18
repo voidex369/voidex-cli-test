@@ -1,3 +1,7 @@
+// Polyfill window for Node.js if not exists
+if (typeof window === 'undefined') {
+    global.window = global;
+}
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { getGenericConfig, getApiKey, getAvailableModels, saveModel, saveApiKey, saveChat, loadChat, listChats, deleteChat, exportChat } from '../../lib/config.js';
 import { toolsDefinition, killActiveProcess } from '../../lib/tools.js';
@@ -11,7 +15,15 @@ import { truncateForRAM, appendMemory } from '../../utils/memory.js';
 let shadowMessages = [{ id: 'welcome', role: 'system', name: 'welcome_msg', content: '' }];
 let shadowAllowedTools = [];
 let shadowHistory = [];
+const getGlobal = () => {
+    if (typeof globalThis !== 'undefined')
+        return globalThis;
+    if (typeof global !== 'undefined')
+        return global;
+    return {};
+};
 export function useChat() {
+    // --- INTERACTIVE SESSION SELECTION STATE (FILE SCOPE) ---
     const config = getGenericConfig();
     const currentApiKey = getApiKey();
     const [messages, setMessages] = useState(shadowMessages);
@@ -95,6 +107,24 @@ export function useChat() {
         const content = rawContent.trim();
         if (!content)
             return;
+        // [NEW] Handle session selection by number FIRST
+        // Check if user wants to CANCEL session selection
+        const sessionModeActive = window.__sessionMode;
+        if (sessionModeActive && (content === '' || content.toLowerCase() === 'cancel')) {
+            delete window.__sessionMode;
+            delete window.__sessionList;
+            setAgentStatus(null);
+            setMessages(prev => [...prev, {
+                    id: 'sys-' + Date.now(),
+                    role: 'system',
+                    content: '❌ Session selection cancelled.'
+                }]);
+            return;
+        }
+        const handledBySelection = handleSessionSelection(content);
+        if (handledBySelection) {
+            return; // Sudah diproses, tidak perlu lanjut
+        }
         const currentConfig = getGenericConfig();
         const latestApiKey = getApiKey();
         if (!latestApiKey && !content.startsWith('/auth')) {
@@ -139,15 +169,34 @@ export function useChat() {
                 setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat saved as "${arg}"` }]);
                 return;
             }
-            if (sub === 'resume' && arg) {
-                const loaded = loadChat(arg);
-                if (loaded.length > 0) {
-                    // [FIX] Force update shadowMessages immediately to prevent loop
-                    shadowMessages = loaded;
-                    setMessages(loaded);
+            if (sub === 'resume') {
+                if (arg) {
+                    const loaded = loadChat(arg);
+                    if (loaded.length > 0) {
+                        shadowMessages = loaded;
+                        setMessages(loaded);
+                    }
+                    else {
+                        setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]);
+                    }
                 }
                 else {
-                    setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat "${arg}" not found or empty.` }]);
+                    // TANPA ARGUMEN - SHOW LIST
+                    const list = listChats();
+                    if (list.length === 0) {
+                        setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: 'No saved sessions found.' }]);
+                    }
+                    else {
+                        // SIMPAN LIST UNTUK UI SELECTION
+                        window.__sessionList = list;
+                        window.__sessionMode = 'resume';
+                        setAgentStatus(`Pilih nomor (1-${list.length}) - ketik angka, atau 'cancel' untuk keluar`);
+                        setMessages(prev => [...prev, {
+                                id: 'sys-' + Date.now(),
+                                role: 'system',
+                                content: `Available Sessions:\n${list.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nSilakan pilih nomor (1-${list.length})`
+                            }]);
+                    }
                 }
                 return;
             }
@@ -157,10 +206,30 @@ export function useChat() {
                 setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: contentText }]);
                 return;
             }
-            if (sub === 'delete' && arg) {
-                const success = deleteChat(arg);
-                const msg = success ? `Chat "${arg}" deleted.` : `Chat "${arg}" not found.`;
-                setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: msg }]);
+            if (sub === 'delete') {
+                if (arg) {
+                    const success = deleteChat(arg);
+                    const msg = success ? `Chat "${arg}" deleted.` : `Chat "${arg}" not found.`;
+                    setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: msg }]);
+                }
+                else {
+                    // TANPA ARGUMEN - SHOW LIST
+                    const list = listChats();
+                    if (list.length === 0) {
+                        setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: 'No saved sessions found.' }]);
+                    }
+                    else {
+                        // SIMPAN LIST UNTUK UI SELECTION
+                        window.__sessionList = list;
+                        window.__sessionMode = 'delete';
+                        setAgentStatus(`Pilih nomor (1-${list.length}) - ketik angka, atau 'cancel' untuk keluar`);
+                        setMessages(prev => [...prev, {
+                                id: 'sys-' + Date.now(),
+                                role: 'system',
+                                content: `Available Sessions to Delete:\n${list.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nSilakan pilih nomor (1-${list.length})`
+                            }]);
+                    }
+                }
                 return;
             }
             if (sub === 'share' && arg) {
@@ -168,7 +237,7 @@ export function useChat() {
                 setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: `Chat shared to: ${arg}` }]);
                 return;
             }
-            const usage = `Usage: /chat [save <id> | resume <id> | list | delete <id> | share <file>]`;
+            const usage = `Usage: /chat [save <id> | resume [id] | list | delete [id] | share <file>]`;
             setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'system', content: usage }]);
             return;
         }
@@ -289,6 +358,64 @@ export function useChat() {
             shadowMessages = nextMsgs;
             return nextMsgs;
         });
+    }, []);
+    // --- INTERACTIVE SESSION SELECTION ---
+    // Handle angka selection dari user input
+    // Handle angka selection dari user input
+    const handleSessionSelection = useCallback((input) => {
+        const selectionMode = window.__sessionMode;
+        const sessionList = window.__sessionList;
+        if (!selectionMode || !sessionList)
+            return false;
+        // Cek apakah input adalah angka
+        const isNum = /^[0-9]+$/.test(input);
+        if (!isNum)
+            return false;
+        const index = parseInt(input) - 1;
+        // VALID INPUT
+        if (index >= 0 && index < sessionList.length) {
+            const sessionName = sessionList[index];
+            if (selectionMode === 'resume') {
+                const loaded = loadChat(sessionName);
+                if (loaded.length > 0) {
+                    shadowMessages = loaded;
+                    setMessages(loaded);
+                    setMessages(prev => [...prev, {
+                            id: 'sys-' + Date.now(),
+                            role: 'system',
+                            content: `✅ Resumed session: ${sessionName}`
+                        }]);
+                }
+            }
+            else if (selectionMode === 'delete') {
+                const success = deleteChat(sessionName);
+                if (success) {
+                    setMessages(prev => [...prev, {
+                            id: 'sys-' + Date.now(),
+                            role: 'system',
+                            content: `✅ Deleted session: ${sessionName}`
+                        }]);
+                    const updated = listChats();
+                    window.__sessionList = updated;
+                    if (updated.length === 0) {
+                        window.__sessionList = [];
+                        window.__sessionMode = null;
+                    }
+                }
+            }
+            window.__sessionList = [];
+            window.__sessionMode = null;
+            setTimeout(() => setAgentStatus(null), 50); // Force update after render
+            setTimeout(() => setAgentStatus(null), 100); // Double ensure
+            return true;
+        }
+        // INVALID INPUT (angka keluar range)
+        setMessages(prev => [...prev, {
+                id: 'sys-' + Date.now(),
+                role: 'system',
+                content: `❌ Nomor tidak valid. Silakan pilih 1-${sessionList.length}`
+            }]);
+        return true;
     }, []);
     return {
         messages, isLoading, error, sendMessage, agentStatus,

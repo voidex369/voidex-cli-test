@@ -48,7 +48,7 @@ src/ui/components/HistoryViewport.tsx_back
 src/ui/components/MessageItem.tsx_back
 src/ui/components/shared/VirtualizedList.tsx_back
 
-# Optional: Ignore specific heavy logs if they exist
+# Ignore specific heavy logs if they exist
 logs/
 telemetry.log
 .gemini/
@@ -56,3 +56,11 @@ telemetry.log
 # Python related (just in case)
 __pycache__/
 *.pyc
+
+# hasil/ Directory - Optional (set to ignore if not needed)
+hasil/
+
+# atau gunakan untuk ignore specific items:
+# hasil/logs/
+# hasil/reports/
+# hasil/temp/

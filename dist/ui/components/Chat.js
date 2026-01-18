@@ -1,4 +1,11 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+const getGlobal = () => {
+    if (typeof globalThis !== 'undefined')
+        return globalThis;
+    if (typeof global !== 'undefined')
+        return global;
+    return {};
+};
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
@@ -144,6 +151,20 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }) => {
     const [selIdx, setSelIdx] = useState(0);
     const [apprIdx, setApprIdx] = useState(0);
     const [histIdx, setHistIdx] = useState(-1);
+    // [NEW] Session selection state
+    const [sessionMode, setSessionMode] = useState(null);
+    const [sessionCount, setSessionCount] = useState(0);
+    useEffect(() => {
+        const check = () => {
+            const mode = window.__sessionMode;
+            const list = window.__sessionList;
+            setSessionMode(mode);
+            setSessionCount(list ? list.length : 0);
+        };
+        check();
+        const interval = setInterval(check, 100);
+        return () => clearInterval(interval);
+    }, [input]);
     // [FIX] State untuk memaksa kursor pindah ke ujung
     const [inputResetKey, setInputResetKey] = useState(0);
     // [SECURITY] State untuk input kode konfirmasi Nuclear
@@ -292,29 +313,6 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }) => {
         const trimmed = v.trim();
         if (!trimmed)
             return;
-        // Handle Commands Lokal (UI Side)
-        if (trimmed === '/model' || trimmed === '/auth' || trimmed === '/theme') {
-            onDialog(trimmed.slice(1));
-            setInput('');
-            return;
-        }
-        if (trimmed.startsWith('/forget')) {
-            forgetMessages(parseInt(trimmed.split(' ')[1]) || 1);
-            setInput('');
-            return;
-        }
-        if (trimmed === '/exit') {
-            exit();
-            return;
-        }
-        // [PERBAIKAN] Handle /clear di sini agar langsung efektif
-        if (trimmed === '/clear') {
-            // Reset input dulu agar bersih
-            setInput('');
-            // Kirim command ke hook untuk di-proses (menghapus state messages)
-            sendMessage(trimmed);
-            return;
-        }
         // Default: Kirim ke AI atau handler umum
         sendMessage(trimmed);
         setHistory((prev) => {
@@ -326,7 +324,7 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }) => {
     }, [sendMessage, onDialog, exit, forgetMessages, setHistory]);
     // Get Current Working Directory
     const cwd = process.cwd();
-    return (_jsxs(Box, { flexDirection: "column", width: "100%", height: isFullScreen ? '100%' : undefined, children: [_jsx(Box, { flexGrow: isFullScreen ? 1 : 0, minHeight: 0, width: "100%", children: _jsx(HistoryViewport, { messages: messages, isLoading: isLoading }) }), _jsxs(Box, { flexDirection: "column", marginTop: 0, flexGrow: 0, flexShrink: 0, width: "100%", children: [_jsx(StatusArea, { agentStatus: agentStatus, liveToolOutput: liveToolOutput, pendingApproval: pendingApproval, approvalOptions: apprOpts, approvalIndex: apprIdx, userInputCode: nuclearCodeInput }), _jsx(InputArea, { input: input, setInput: setInput, onSubmit: handleSend, suggestions: suggestions, selectedIndex: selIdx, hasMemory: hasMemory, isLoading: isLoading, resetKey: inputResetKey, showExitNotice: showExitNotice, cwd: cwd })] })] }));
+    return (_jsxs(Box, { flexDirection: "column", width: "100%", height: isFullScreen ? '100%' : undefined, children: [_jsx(Box, { flexGrow: isFullScreen ? 1 : 0, minHeight: 0, width: "100%", children: _jsx(HistoryViewport, { messages: messages, isLoading: isLoading }) }), _jsxs(Box, { flexDirection: "column", marginTop: 0, flexGrow: 0, flexShrink: 0, width: "100%", children: [_jsx(StatusArea, { agentStatus: agentStatus, liveToolOutput: liveToolOutput, pendingApproval: pendingApproval, approvalOptions: apprOpts, approvalIndex: apprIdx, userInputCode: nuclearCodeInput }), _jsx(InputArea, { input: input, setInput: setInput, onSubmit: handleSend, suggestions: suggestions, selectedIndex: selIdx, hasMemory: hasMemory, isLoading: isLoading, resetKey: inputResetKey, showExitNotice: showExitNotice, cwd: cwd, sessionMode: sessionMode, sessionCount: sessionCount })] })] }));
 });
 export default function Chat({ isFullScreen }) {
     const chatState = useChat();

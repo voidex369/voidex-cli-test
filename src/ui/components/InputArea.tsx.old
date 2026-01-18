@@ -1,7 +1,4 @@
-declare const window: any;
-declare const globalThis: any;
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
 import { getGenericConfig, getModelDisplayName } from '../../lib/config.js';
@@ -18,8 +15,6 @@ interface InputAreaProps {
   error?: string | null;
   showExitNotice?: boolean;
   cwd?: string;
-  sessionMode?: string | null;
-  sessionCount?: number;
 }
 
 const InputArea: React.FC<InputAreaProps> = ({
@@ -33,12 +28,15 @@ const InputArea: React.FC<InputAreaProps> = ({
   resetKey = 0,
   error = null,
   showExitNotice = false,
-  cwd = '',
-  sessionMode = null,
-  sessionCount = 0
+  cwd = ''
 }) => {
   // State lokal untuk menyimpan nama model saat ini
   const [currentModel, setCurrentModel] = useState('Loading...');
+  
+  // FIX: Hold state untuk reduce render load
+  const [isHolding, setIsHolding] = useState(false);
+  const lastBackspaceTime = useRef(0);
+  const holdTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Fungsi untuk update model
   const updateModel = () => {
@@ -98,12 +96,28 @@ const InputArea: React.FC<InputAreaProps> = ({
             <TextInput
               key={resetKey}
               value={input}
-              onChange={setInput}
+              onChange={(val) => {
+                // FIX: Detect hold by typing speed
+                const now = Date.now();
+                const timeSinceLast = now - lastBackspaceTime.current;
+                
+                if (timeSinceLast < 30) {
+                  // Rapid typing = hold detected
+                  if (!isHolding) setIsHolding(true);
+                  
+                  // Clear hold timer
+                  if (holdTimer.current) clearTimeout(holdTimer.current);
+                  holdTimer.current = setTimeout(() => {
+                    setIsHolding(false);
+                  }, 50);
+                }
+                lastBackspaceTime.current = now;
+                
+                // Always update input
+                setInput(val);
+              }}
               onSubmit={onSubmit}
-              placeholder={isLoading ? 'Sovereign is thinking...' : 
-                         ((window as any).__sessionMode && (window as any).__sessionList?.length > 0 ? 
-                            `Pilih nomor (1-${sessionCount}) untuk ${sessionMode === 'resume' ? 'resume' : 'delete'} session...` : 
-                            'Type or / for commands...')}
+              placeholder="Type or / for commands..."
             />
           )}
         </Box>

@@ -5,6 +5,7 @@ import Gradient from 'ink-gradient';
 import BigText from 'ink-big-text';
 import { getApiKey, saveApiKey } from '../lib/config.js';
 import { validateApiKey } from '../lib/openrouter.js';
+import { checkInternetConnection } from '../lib/internet.js';
 import TextInput from 'ink-text-input';
 import Chat from './components/Chat.js';
 import { KeypressProvider } from './contexts/KeypressContext.js';
@@ -31,25 +32,71 @@ export default function App() {
     });
     useEffect(() => {
         const bootSequence = async () => {
+            // [DEBUG] Log untuk debugging
+            if (process.env.DEBUG === 'true') {
+                console.log('[App.tsx] Boot sequence started');
+            }
+            // STEP 1: Cek koneksi internet DULU
+            setBootColor('cyan');
+            setBootStatus('↻ Checking internet connection...');
+            const hasInternet = await checkInternetConnection();
+            if (process.env.DEBUG === 'true') {
+                console.log('[App.tsx] Internet connection:', hasInternet ? 'YES' : 'NO');
+            }
+            if (!hasInternet) {
+                // ❌ Tidak ada internet
+                setBootColor('red');
+                setBootStatus('❌ No internet connection detected');
+                if (process.env.DEBUG === 'true') {
+                    console.log('[App.tsx] No internet - Showing error');
+                }
+                // Tampilkan error tapi TIDAK redirect ke /auth
+                // User perlu perbaiki internet dulu
+                setTimeout(() => {
+                    setBootStatus('⚠ Please connect to the internet and restart');
+                    // Keep di halaman welcome dengan error message
+                }, 3000);
+                return; // Stop boot sequence
+            }
+            // STEP 2: Cek API Key (hanya kalau ada internet)
             const key = getApiKey();
+            if (process.env.DEBUG === 'true') {
+                console.log('[App.tsx] API Key found:', key ? 'YES' : 'NO');
+            }
             if (!key) {
                 setBootColor('yellow');
                 setBootStatus('⚠ API Key not configured. Redirecting to Setup...');
+                if (process.env.DEBUG === 'true') {
+                    console.log('[App.tsx] No API Key - Redirecting to /auth');
+                }
                 setTimeout(() => setView('auth'), 2000);
                 return;
             }
+            // STEP 3: Validasi API Key (hanya kalau ada internet)
             setBootColor('cyan');
             setBootStatus('↻ Verifying Neural Uplink (API Check)...');
             const isValid = await validateApiKey(key);
+            if (process.env.DEBUG === 'true') {
+                console.log('[App.tsx] validateApiKey result:', isValid ? 'VALID' : 'INVALID');
+            }
             if (isValid) {
                 setBootColor('green');
                 setBootStatus('✓ Access Granted. System Online.');
+                if (process.env.DEBUG === 'true') {
+                    console.log('[App.tsx] Valid - Redirecting to /chat');
+                }
                 setTimeout(() => setView('chat'), 800);
             }
             else {
                 setBootColor('red');
-                setBootStatus('✖ Connection Failed or Invalid Key! Redirecting...');
-                setTimeout(() => setView('auth'), 2500);
+                setBootStatus('❌ API Key Invalid or Expired');
+                if (process.env.DEBUG === 'true') {
+                    console.log('[App.tsx] Invalid - Redirecting to /auth');
+                }
+                setTimeout(() => {
+                    setBootStatus('🔄 Redirecting to Setup...');
+                    setTimeout(() => setView('auth'), 1500);
+                }, 1000);
             }
         };
         if (view === 'welcome') {

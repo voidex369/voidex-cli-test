@@ -12,7 +12,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import { useChat } from '../hooks/useChat.js';
-import { getAvailableModels, saveModel, saveApiKey, getApiKey, getModelDisplayName, listChats, deleteChat, loadChat } from '../../lib/config.js';
+import { getAvailableModels, saveModel, saveApiKey, getApiKey, getModelDisplayName, getModelTokenInfo, listChats, deleteChat, loadChat } from '../../lib/config.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import HistoryViewport from './HistoryViewport.js';
 import StatusArea from './StatusArea.js';
@@ -40,13 +40,22 @@ const ModelPicker = React.memo(({ onSelect, onCancel, models }: any) => {
     });
 
     return (
-        <Box flexDirection="column" borderStyle="double" borderColor="magenta" padding={1} width={80}>
+        <Box flexDirection="column" borderStyle="double" borderColor="magenta" padding={1} width={100}>
             <Text bold color="magenta">Select Model (Esc to cancel):</Text>
             <Box borderStyle="single" borderColor="gray" paddingX={1} marginBottom={1}><TextInput value={filter} onChange={setFilter} placeholder="Search..." /></Box>
             <Box flexDirection="column">{visible.map((m: string, i: number) => {
                 const isSel = (startIndex + i) === selectedIndex;
-                return <Text key={m} color={isSel ? 'cyan' : 'white'} bold={isSel}>{isSel ? '➤ ' : '  '}{getModelDisplayName(m)}</Text>;
+                const tokenInfo = getModelTokenInfo(m);
+                return (
+                    <Text key={m} color={isSel ? 'cyan' : 'white'} bold={isSel}>
+                        {isSel ? '➤ ' : '  '}{getModelDisplayName(m)}
+                        <Text color={isSel ? 'yellow' : 'gray'}> [{tokenInfo}]</Text>
+                    </Text>
+                );
             })}</Box>
+            <Box marginTop={1}>
+                <Text dimColor italic>Total: {filtered.length} models | Use ↑↓ to navigate, Enter to select, Esc to cancel</Text>
+            </Box>
         </Box>
     );
 });
@@ -308,6 +317,9 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
             { cmd: '/chat delete', desc: 'Delete a session', parent: '/chat' },
             { cmd: '/chat share', desc: 'Share chat to file', parent: '/chat' },
             { cmd: '/forget', desc: 'Forget last N interactions' },
+            { cmd: '/debug', desc: 'Show error history' },
+            { cmd: '/debug export', desc: 'Export debug logs', parent: '/debug' },
+            { cmd: '/debug clear', desc: 'Clear debug logs', parent: '/debug' },
             { cmd: '/exit', desc: 'Quit application' }
         ];
 
@@ -432,7 +444,38 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }: any) => {
         const trimmed = v.trim();
         if (!trimmed) return;
         
-                // Default: Kirim ke AI atau handler umum
+        const lowerContent = trimmed.toLowerCase();
+
+        // Handle Internal Commands (UI Dialogs)
+        if (lowerContent === '/model') {
+            onDialog('model');
+            setHistory((prev: string[]) => [...prev, trimmed]);
+            setHistIdx(-1);
+            setInput('');
+            return;
+        }
+        if (lowerContent === '/auth') {
+            onDialog('auth');
+            setHistory((prev: string[]) => [...prev, trimmed]);
+            setHistIdx(-1);
+            setInput('');
+            return;
+        }
+        if (lowerContent === '/theme') {
+            onDialog('theme');
+            setHistory((prev: string[]) => [...prev, trimmed]);
+            setHistIdx(-1);
+            setInput('');
+            return;
+        }
+
+        // Handle /exit secara lokal
+        if (lowerContent === '/exit') {
+            exit();
+            return;
+        }
+        
+        // Default: Kirim ke AI atau handler umum (termasuk komando lain seperti /help, /tools, dll)
         sendMessage(trimmed);
         setHistory((prev: string[]) => {
             const last = prev[prev.length - 1];

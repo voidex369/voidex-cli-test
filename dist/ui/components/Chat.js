@@ -10,7 +10,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import { useChat } from '../hooks/useChat.js';
-import { getAvailableModels, saveModel, saveApiKey, getApiKey, getModelDisplayName } from '../../lib/config.js';
+import { getAvailableModels, saveModel, saveApiKey, getApiKey, getModelDisplayName, getModelTokenInfo } from '../../lib/config.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import HistoryViewport from './HistoryViewport.js';
 import StatusArea from './StatusArea.js';
@@ -42,10 +42,11 @@ const ModelPicker = React.memo(({ onSelect, onCancel, models }) => {
         else if (key.escape || (key.ctrl && input === 'c'))
             onCancel();
     });
-    return (_jsxs(Box, { flexDirection: "column", borderStyle: "double", borderColor: "magenta", padding: 1, width: 80, children: [_jsx(Text, { bold: true, color: "magenta", children: "Select Model (Esc to cancel):" }), _jsx(Box, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginBottom: 1, children: _jsx(TextInput, { value: filter, onChange: setFilter, placeholder: "Search..." }) }), _jsx(Box, { flexDirection: "column", children: visible.map((m, i) => {
+    return (_jsxs(Box, { flexDirection: "column", borderStyle: "double", borderColor: "magenta", padding: 1, width: 100, children: [_jsx(Text, { bold: true, color: "magenta", children: "Select Model (Esc to cancel):" }), _jsx(Box, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginBottom: 1, children: _jsx(TextInput, { value: filter, onChange: setFilter, placeholder: "Search..." }) }), _jsx(Box, { flexDirection: "column", children: visible.map((m, i) => {
                     const isSel = (startIndex + i) === selectedIndex;
-                    return _jsxs(Text, { color: isSel ? 'cyan' : 'white', bold: isSel, children: [isSel ? '➤ ' : '  ', getModelDisplayName(m)] }, m);
-                }) })] }));
+                    const tokenInfo = getModelTokenInfo(m);
+                    return (_jsxs(Text, { color: isSel ? 'cyan' : 'white', bold: isSel, children: [isSel ? '➤ ' : '  ', getModelDisplayName(m), _jsxs(Text, { color: isSel ? 'yellow' : 'gray', children: [" [", tokenInfo, "]"] })] }, m));
+                }) }), _jsx(Box, { marginTop: 1, children: _jsxs(Text, { dimColor: true, italic: true, children: ["Total: ", filtered.length, " models | Use \u2191\u2193 to navigate, Enter to select, Esc to cancel"] }) })] }));
 });
 const ThemePicker = React.memo(({ onSelect, onCancel }) => {
     const { availableThemes, theme, setTheme } = useTheme();
@@ -193,6 +194,9 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }) => {
             { cmd: '/chat delete', desc: 'Delete a session', parent: '/chat' },
             { cmd: '/chat share', desc: 'Share chat to file', parent: '/chat' },
             { cmd: '/forget', desc: 'Forget last N interactions' },
+            { cmd: '/debug', desc: 'Show error history' },
+            { cmd: '/debug export', desc: 'Export debug logs', parent: '/debug' },
+            { cmd: '/debug clear', desc: 'Clear debug logs', parent: '/debug' },
             { cmd: '/exit', desc: 'Quit application' }
         ];
         if (input.startsWith('/')) {
@@ -313,7 +317,35 @@ const ChatView = React.memo(({ onDialog, chatState, isFullScreen }) => {
         const trimmed = v.trim();
         if (!trimmed)
             return;
-        // Default: Kirim ke AI atau handler umum
+        const lowerContent = trimmed.toLowerCase();
+        // Handle Internal Commands (UI Dialogs)
+        if (lowerContent === '/model') {
+            onDialog('model');
+            setHistory((prev) => [...prev, trimmed]);
+            setHistIdx(-1);
+            setInput('');
+            return;
+        }
+        if (lowerContent === '/auth') {
+            onDialog('auth');
+            setHistory((prev) => [...prev, trimmed]);
+            setHistIdx(-1);
+            setInput('');
+            return;
+        }
+        if (lowerContent === '/theme') {
+            onDialog('theme');
+            setHistory((prev) => [...prev, trimmed]);
+            setHistIdx(-1);
+            setInput('');
+            return;
+        }
+        // Handle /exit secara lokal
+        if (lowerContent === '/exit') {
+            exit();
+            return;
+        }
+        // Default: Kirim ke AI atau handler umum (termasuk komando lain seperti /help, /tools, dll)
         sendMessage(trimmed);
         setHistory((prev) => {
             const last = prev[prev.length - 1];

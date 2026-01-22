@@ -119,31 +119,43 @@ export function saveApiKey(apiKey: string): void {
 // --- MODEL MANAGEMENT ---
 
 // Model template (referensi untuk custom)
+// TESTED: 2026-01-19 - Hanya model yang WORK saja
+// Filter berdasarkan debug_logs.json (error 404/402 dihapus)
+// Updated: 2026-01-19 - Tambah semua model dari model.txt
 export const MODEL_TEMPLATES = [
+    // ✅ ACTIVE MODELS (Sudah teruji work)
     'xiaomi/mimo-v2-flash:free',
-    'alibaba/tongyi-deepresearch-30b-a3b:free',
-    'allenai/olmo-3-32b-think:free',
-    'allenai/olmo-3.1-32b-think:free',
-    'anthropic/claude-3-opus',
-    'anthropic/claude-3-sonnet',
     'arcee-ai/trinity-mini:free',
-    'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
-    'nousresearch/hermes-3-llama-3.1-405b:free',
-    'mistralai/mixtral-8x22b-instruct',
-    'liquid/lfm-40b:free',
-    'google/gemini-2.0-flash-exp:free',
-    'google/gemini-2.5-flash-image',
-    'google/gemini-2.5-flash-lite',
-    'meta-llama/llama-3-70b-instruct',
-    'mistral/mistral-large',
     'mistralai/devstral-2512:free',
-    'moonshotai/kimi-k2:free',
-    'nex-agi/deepseek-v3.1-nex-n1:free',
     'nvidia/nemotron-3-nano-30b-a3b:free',
-    'openai/gpt-4o',
-    'openai/gpt-oss-120b:free',
     'qwen/qwen3-coder:free',
-    'z-ai/glm-4.5-air:free'
+    'z-ai/glm-4.5-air:free',
+    
+    // 🔥 NEW MODELS (Dari model.txt)
+    'meta-llama/llama-3.2-3b-instruct:free',
+    'qwen/qwen-2.5-vl-7b-instruct:free',
+    'google/gemma-3-4b-it:free',
+    'google/gemma-3n-e2b-it:free',
+    'google/gemma-3-12b-it:free',
+    'google/gemma-3n-e4b-it:free',
+    'moonshotai/kimi-k2:free',
+    'meta-llama/llama-3.1-405b-instruct:free',
+    'tngtech/deepseek-r1t2-chimera:free',
+    'tngtech/deepseek-r1t-chimera:free',
+    'deepseek/deepseek-r1-0528:free',
+    'tngtech/tng-r1t-chimera:free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'google/gemma-3-27b-it:free',
+    'openai/gpt-oss-120b:free',
+    'google/gemini-2.0-flash-exp:free',
+    'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+    'openai/gpt-oss-20b:free',
+    'nousresearch/hermes-3-llama-3.1-405b:free',
+    'nvidia/nemotron-nano-12b-v2-vl:free',
+    'allenai/molmo-2-8b:free',
+    'mistralai/mistral-small-3.1-24b-instruct:free',
+    'qwen/qwen3-next-80b-a3b-instruct:free',
+    'qwen/qwen3-4b:free',
 ];
 
 // Ambil daftar model dari config custom + templates
@@ -166,7 +178,13 @@ export function getAvailableModels(): string[] {
     
     // Gabungkan templates + custom models (hindari duplikat)
     const allModels = [...MODEL_TEMPLATES, ...customModels];
-    return [...new Set(allModels)]; // Remove duplicates
+    
+    // Remove duplicates dan filter out invalid models
+    const uniqueModels = [...new Set(allModels)].filter(model => 
+        model && model.includes('/') && model.length > 3
+    );
+    
+    return uniqueModels;
 }
 
 // Simpan model custom ke file terpisah
@@ -287,6 +305,48 @@ export function getModelDisplayName(model: string): string {
 
     // Kembalikan nama full tanpa dipotong (split)
     return model;
+}
+
+// [NEW] Fungsi untuk mendapatkan info token dari model
+export function getModelTokenInfo(model: string): string {
+    // Database token dari model.txt
+    const modelTokens: Record<string, string> = {
+        // Rekomendasi Utama
+        'xiaomi/mimo-v2-flash:free': '262K',
+        'arcee-ai/trinity-mini:free': '131K',
+        'mistralai/devstral-2512:free': '262K',
+        'nvidia/nemotron-3-nano-30b-a3b:free': '256K',
+        'qwen/qwen3-coder:free': '262K',
+        'z-ai/glm-4.5-air:free': '131K',
+        
+        // Baru dari model.txt
+        'meta-llama/llama-3.2-3b-instruct:free': '131K',
+        'qwen/qwen-2.5-vl-7b-instruct:free': '33K',
+        'google/gemma-3-4b-it:free': '33K',
+        'google/gemma-3n-e2b-it:free': '8K',
+        'google/gemma-3-12b-it:free': '33K',
+        'google/gemma-3n-e4b-it:free': '8K',
+        'moonshotai/kimi-k2:free': '33K',
+        'meta-llama/llama-3.1-405b-instruct:free': '131K',
+        'tngtech/deepseek-r1t2-chimera:free': '164K',
+        'tngtech/deepseek-r1t-chimera:free': '164K',
+        'deepseek/deepseek-r1-0528:free': '164K',
+        'tngtech/tng-r1t-chimera:free': '164K',
+        'meta-llama/llama-3.3-70b-instruct:free': '131K',
+        'google/gemma-3-27b-it:free': '131K',
+        'openai/gpt-oss-120b:free': '131K',
+        'google/gemini-2.0-flash-exp:free': '1.05M',
+        'cognitivecomputations/dolphin-mistral-24b-venice-edition:free': '33K',
+        'openai/gpt-oss-20b:free': '131K',
+        'nousresearch/hermes-3-llama-3.1-405b:free': '131K',
+        'nvidia/nemotron-nano-12b-v2-vl:free': '128K',
+        'allenai/molmo-2-8b:free': '37K',
+        'mistralai/mistral-small-3.1-24b-instruct:free': '128K',
+        'qwen/qwen3-next-80b-a3b-instruct:free': '262K',
+        'qwen/qwen3-4b:free': '41K',
+    };
+
+    return modelTokens[model] || 'Unknown';
 }
 
 export function saveModel(model: string) {

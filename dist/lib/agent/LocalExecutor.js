@@ -2,6 +2,7 @@ import { createClient } from '../openrouter.js';
 import { toolsDefinition, toolRegistry } from '../tools.js';
 import { getSystemContext } from '../context.js';
 import { truncateForRAM } from '../../utils/memory.js';
+import { logError } from '../debug.js';
 export class LocalExecutor {
     iterationCount = 0;
     maxIterations = 50;
@@ -169,7 +170,14 @@ export class LocalExecutor {
                 catch (e) {
                     if (e.name === 'AbortError')
                         return;
-                    onError(e.message);
+                    // [DEBUG] Track error dengan detail
+                    const debugInfo = logError(e, model);
+                    // Format error untuk UI
+                    let errorMsg = e.message;
+                    if (process.env.DEBUG === 'true') {
+                        errorMsg = `\n\n=== DEBUG ERROR REPORT ===\nError Type: ${debugInfo.errorType}\nModel: ${debugInfo.model}\nStatus Code: ${debugInfo.statusCode || 'N/A'}\nMessage: ${debugInfo.errorMessage}\nSuggestion: ${debugInfo.suggestion || 'No suggestion available'}\n==========================\n\n${e.message}`;
+                    }
+                    onError(errorMsg);
                     state = 'ERROR';
                 }
             }
@@ -321,7 +329,7 @@ ${sysContext}
             return true;
         return false;
     }
-    async callWithRetry(fn, onStatus, signal, retries = 3, delay = 2000) {
+    async callWithRetry(fn, onStatus, signal, retries = 3, delay = 2000, model) {
         try {
             if (signal?.aborted)
                 throw new Error('AbortError');
@@ -330,11 +338,15 @@ ${sysContext}
         catch (err) {
             if (signal?.aborted)
                 throw err;
-            if ((err.message.includes('429') || err.message.includes('fetch failed')) && retries > 0) {
-                onStatus(`Connection unstable. Retrying in ${delay / 1000}s...`);
+            // [DEBUG] Track retry attempt
+            const debugInfo = logError(err, model);
+            // Jika rate limiting atau connection error, coba retry
+            if ((err.message.includes('429') || err.message.includes('fetch failed') || err.message.includes('timeout')) && retries > 0) {
+                onStatus(`⚠️  ${debugInfo.errorType}: Retrying in ${delay / 1000}s... (${retries} attempts left)`);
                 await this.sleep(delay);
-                return this.callWithRetry(fn, onStatus, signal, retries - 1, delay * 2);
+                return this.callWithRetry(fn, onStatus, signal, retries - 1, delay * 2, model);
             }
+            // Jangan retry untuk error yang bukan network/timeouts
             throw err;
         }
     }

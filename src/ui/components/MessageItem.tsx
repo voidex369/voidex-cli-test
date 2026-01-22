@@ -3,51 +3,10 @@ import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
 import { Message } from '../../types/index.js';
 import { useTheme } from '../contexts/ThemeContext.js';
+import { HelpMenu } from './HelpMenu.js';
 
 
 /* ---------------- SUB COMPONENTS ---------------- */
-
-export const HelpMenu = React.memo(() => {
-    const { theme } = useTheme();
-    return (
-        <Box flexDirection="column" borderStyle="double" borderColor={theme.text.accent} padding={1} marginBottom={1}>
-            <Text bold color={theme.text.accent}>Basics:</Text>
-            <Text> Add context: Use @ to specify files for context (Coming Soon)</Text>
-            <Text> Shell mode: Use natural language or execute bash directly via tools.</Text>
-
-            <Box marginTop={1} flexDirection="column">
-                <Text bold color={theme.text.accent}>Commands:</Text>
-                <Text>  /about          - Show version info</Text>
-                <Text>  /clear          - Clear screen and conversation history</Text>
-                <Text>  /help           - Show this help menu</Text>
-                <Text>  /model          - Configure LLM model</Text>
-                <Text>  /stats          - Check system stats (RAM, CPU, etc)</Text>
-                <Text>  /tools          - List available Sovereign tools</Text>
-                <Text>  /auth           - Update API Key (Get at: https://openrouter.ai/keys)</Text>
-                <Text bold color="green">  /chat           - Manage conversation history</Text>
-                <Text>    save {'<id>'}   - Save current session as checkpoint</Text>
-                <Text>    resume {'<id>'} - Resume session from checkpoint</Text>
-                <Text>    list          - List all saved sessions</Text>
-                <Text>    delete {'<id>'} - Delete a session checkpoint</Text>
-                <Text>    share {'<file>'} - Share chat to file (.json or .txt)</Text>
-            </Box>
-
-            <Box marginTop={1} flexDirection="column">
-                <Text bold color="yellow">Keyboard Shortcuts:</Text>
-                <Text> Ctrl+C      - Quit (or Cancel Thinking)</Text>
-                <Text> Tab         - Autocomplete suggestion</Text>
-                <Text> Up/Down     - Cycle history or suggestions</Text>
-                <Text> Enter       - Send message</Text>
-            </Box>
-
-            <Box marginTop={1} flexDirection="column" borderStyle="round" borderColor="white">
-                <Text bold color="white">By VoidEx</Text>
-                <Text> Telegram: https://t.me/voidex369</Text>
-                <Text> GitHub:   https://github.com/voidex369</Text>
-            </Box>
-        </Box>
-    );
-});
 
 export const ToolsList = React.memo(({ content }: { content: string }) => {
     const { theme } = useTheme();

@@ -1,3 +1,12 @@
+# ===============================================
+# 🛡️ VOIDEX CLI - GIT IGNORE FILE
+# ===============================================
+# File-file yang tidak akan di-tracked oleh Git
+# ===============================================
+
+# ===============================================
+# 📦 PRODUCTION & BUILD
+# ===============================================
 # Dependencies
 node_modules/
 npm-debug.log*
@@ -5,25 +14,91 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
+GIT_PUSH.md
 
 # Build Output
 dist/
 build/
 *.tsbuildinfo
 
-# Environment Variables (CRITICAL)
+# ===============================================
+# 🔐 SECURITY & SECRETS (CRITICAL)
+# ===============================================
 .env
 .env.local
 .env.production
 .env.development
+.env.*.local
 .secrets
+*.pem
+*.key
+*.crt
 
-# Logs
+# ===============================================
+# 🐛 DEBUG & LOGS
+# ===============================================
 *.log
 logs/
 **/.logs/
+telemetry.log
+.gemini/
+debug_logs.json
 
-# OS Generated Files
+# ===============================================
+# 📁 DEVELOPMENT FOLDERS (TIDAK PERLU DI REPO)
+# ===============================================
+# Development temporary files
+patches/
+tests/
+*.patch
+
+# Reports temporary
+reports/
+
+# ===============================================
+# 🧪 TESTING & COVERAGE
+# ===============================================
+# Test files (jika ada)
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+coverage/
+*.lcov
+
+# ===============================================
+# 📁 PROJECT SPECIFIC (Development)
+# ===============================================
+# Folder yang tidak perlu masuk repo
+image_compressor_app/
+model.txt
+model_connectivity_report.json
+
+# Temporary development files
+12.txt
+run-voidex.js
+
+# Backup files lama
+package-lock.json_back
+src/lib/agent/LocalExecutor.ts_back
+src/ui/components/HistoryViewport.tsx_back
+src/ui/components/MessageItem.tsx_back
+src/ui/components/shared/VirtualizedList.tsx_back
+src/ui/hooks/useChat.ts.backup_help
+src/ui/hooks/useChat.ts.backup_manual
+src/ui/hooks/useChat.ts_back
+src/ui/hooks/new_help_section.txt
+
+# Backup dan temporary files
+*.backup
+*.back
+*_back
+*_backup
+
+# ===============================================
+# 🖥️ OS & CACHE
+# ===============================================
+# macOS
 .DS_Store
 .DS_Store?
 ._*
@@ -32,35 +107,180 @@ logs/
 ehthumbs.db
 Thumbs.db
 
-# IDE / Editor
+# Windows
+Desktop.ini
+Thumbs.db
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+.Xauthority
+
+# ===============================================
+# 🛠️ IDE & EDITOR
+# ===============================================
+# VS Code
 .vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains
 .idea/
+*.iml
+
+# Vim
 *.swp
 *.swo
 *~
 
-# Temporary Files (Project Specific)
-12.txt
-run-voidex.js
-package-lock.json_back
-src/lib/agent/LocalExecutor.ts_back
-src/ui/components/HistoryViewport.tsx_back
-src/ui/components/MessageItem.tsx_back
-src/ui/components/shared/VirtualizedList.tsx_back
+# Emacs
+*~
+\#*\#
+.\#*
 
-# Ignore specific heavy logs if they exist
-logs/
-telemetry.log
-.gemini/
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
 
-# Python related (just in case)
+# ===============================================
+# 📝 FILES
+# ===============================================
+# Temporary files
+*.tmp
+*.temp
+*.lock
+*.lock.*
+*.pid
+*.seed
+*.pid.lock
+
+# ===============================================
+# 🐍 PYTHON
+# ===============================================
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env/
+*.egg-info/
+dist/
+build/
 
-# hasil/ Directory - Optional (set to ignore if not needed)
+# ===============================================
+# 📊 COVERAGE & REPORTS
+# ===============================================
+coverage/
+*.lcov
+*.gcda
+*.gcno
+lcov.info
+
+# ===============================================
+# 🔄 CI/CD & ARTIFACTS
+# ===============================================
+# CI files
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+.drone.yml
+jenkins/
+.gitlab/
+*.crt
+*.pem
+*.key
+
+# ===============================================
+# 📦 NPM/YARN
+# ===============================================
+.npmrc
+.yarnrc
+.yarn/
+.pnp/
+.pnp.js
+
+# ===============================================
+# 🎨 ASSETS & MEDIA
+# ===============================================
+# Images
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.ico
+*.svg
+*.webp
+*.bmp
+*.tiff
+
+# Videos
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+
+# Audio
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.aac
+
+# Archives
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# ===============================================
+# 📊 DATA & DATABASES
+# ===============================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.db-journal
+*.mdb
+*.accdb
+
+# ===============================================
+# ⚠️ PROJECT SPECIFIC IGNORES (VOIDEX CLI)
+# ===============================================
+# Hasil folder (development output)
 hasil/
+hasil/logs/
+hasil/reports/
+hasil/temp/
 
-# atau gunakan untuk ignore specific items:
-# hasil/logs/
-# hasil/reports/
-# hasil/temp/
+# Telemetry data
+telemetry/
+
+# Model database
+models/
+model_db/
+
+# Cache
+.cache/
+.tmp/
+.temp/
+
+# Custom configs (local only)
+*.local.json
+config.local.*
+
+# Dev tools
+.devtools/
+.tools/
+.bak/
+.backup/
+tests/
+

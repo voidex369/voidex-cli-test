@@ -13,7 +13,10 @@
     "dev:watch": "tsc -w",
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    
+    "push-safe": "node scripts/git-delay.js",
+    "push-safe:dev": "npx tsx scripts/push-safe.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

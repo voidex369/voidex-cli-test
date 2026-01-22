@@ -79,6 +79,62 @@ To start using the sovereign capabilities, you need to configure your OpenRouter
 
 ---
 
+## 🐛 Debug Mode
+
+**NEW FEATURE!** Debug mode allows you to track and diagnose errors when models fail.
+
+### Enabling Debug Mode
+
+**Linux/Mac:**
+```bash
+export DEBUG=true
+npm start
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:DEBUG = "true"
+npm start
+```
+
+### Debug Commands
+
+| Command | Description |
+| :--- | :--- |
+| `/debug` | View last 10 errors with detailed analysis |
+| `/debug export` | Export logs to `debug_logs.json` file |
+| `/debug clear` | Clear error history from memory |
+
+### Error Types Tracked
+
+- **CONNECTION_TIMEOUT** - Network issues, server down
+- **RATE_LIMITED** - API quota exceeded (429 error)
+- **MODEL_OFFLINE** - Model not found (404 error)
+- **API_KEY_INVALID** - Authentication failed (401/403)
+- **UNKNOWN_ERROR** - Unclassified errors
+
+### Example Output
+
+```
+🐛 DEBUG MODE - ERROR HISTORY
+
+Total Errors: 3
+Current Model: openai/gpt-4o
+Debug Mode: ✅ Enabled
+
+Recent Errors:
+
+**1. RATE_LIMITED**
+• Model: openai/gpt-4o
+• Time: 2026-01-19T10:30:45.123Z
+• Status: 429
+• Suggestion: Model ini habis quota. Coba model lain atau tunggu beberapa menit.
+```
+
+**For detailed documentation:** See `DEBUG_MODE_README.md`
+
+---
+
 ## 🛠 Command Reference
 
 The CLI support several interactive commands for configuration and management:
@@ -101,6 +157,9 @@ The CLI support several interactive commands for configuration and management:
 | `/chat share <file>` | Export chat to file. |
 | `/forget [n]` | Forget last N interactions. |
 | `/exit` | Gracefully shut down the application. |
+| `/debug` | Display error history and debugging info. |
+| `/debug export` | Export error logs to `debug_logs.json`. |
+| `/debug clear` | Clear error logs from memory. |
 
 ---
 

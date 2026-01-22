@@ -4,6 +4,7 @@ if (typeof window === 'undefined') {
 }
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { getGenericConfig, getApiKey, getAvailableModels, saveModel, saveApiKey, saveChat, loadChat, listChats, deleteChat, exportChat } from '../../lib/config.js';
+import { DebugTracker } from '../../lib/debug.js';
 import { toolsDefinition, killActiveProcess } from '../../lib/tools.js';
 import os from 'os';
 import fs from 'fs';
@@ -11,6 +12,23 @@ import path from 'path';
 import { LocalExecutor } from '../../lib/agent/LocalExecutor.js';
 // [UPDATE] Import appendMemory di sini
 import { truncateForRAM, appendMemory } from '../../utils/memory.js';
+// --- INTERNET CONNECTION CHECKER ---
+async function checkInternetConnection() {
+    try {
+        // Coba ping OpenRouter API (timeout 3 detik)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const response = await fetch('https://openrouter.ai/api/v1', {
+            method: 'HEAD',
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response.ok;
+    }
+    catch (error) {
+        return false;
+    }
+}
 // --- SHADOW PERSISTENCE LAYER ---
 let shadowMessages = [{ id: 'welcome', role: 'system', name: 'welcome_msg', content: '' }];
 let shadowAllowedTools = [];
@@ -127,10 +145,20 @@ export function useChat() {
         }
         const currentConfig = getGenericConfig();
         const latestApiKey = getApiKey();
-        if (!latestApiKey && !content.startsWith('/auth')) {
-            setError('API Key is missing. Use /auth to set it.');
-            setAgentStatus(null);
-            return;
+        // [FIXED] Cek koneksi internet DULU sebelum minta API key
+        if (!latestApiKey && !content.startsWith('/auth') && !content.startsWith('/debug')) {
+            // Cek koneksi internet
+            const hasInternet = await checkInternetConnection();
+            if (!hasInternet) {
+                setError('❌ No internet connection detected.\n\nYou need internet to:\n• Connect to OpenRouter API\n• Use AI models\n• Chat with the agent\n\nPlease connect to the internet and try again.');
+                setAgentStatus(null);
+                return;
+            }
+            else {
+                setError('⚠️  API Key is missing.\n\nPlease configure your OpenRouter API Key first.\n\nType /auth to set your API key.\n\nGet your free API key at: https://openrouter.ai/keys');
+                setAgentStatus(null);
+                return;
+            }
         }
         const lowerContent = content.toLowerCase();
         if (lowerContent === '/clear') {
@@ -252,7 +280,7 @@ export function useChat() {
             return;
         }
         if (lowerContent === '/help') {
-            setMessages(prev => [...prev, { id: 'user-' + Date.now(), role: 'user', content: '/help' }, { id: 'sys-' + Date.now(), role: 'system', content: 'HELP_MENU_ACTIVE', name: 'help_menu' }]);
+            setMessages(prev => [...prev, { id: 'user-' + Date.now(), role: 'user', content: '/help' }, { id: 'sys-' + Date.now(), role: 'system', content: '', name: 'help_menu' }]);
             return;
         }
         if (lowerContent === '/stats') {
@@ -260,6 +288,77 @@ export function useChat() {
             const totalMem = (os.totalmem() / (1024 * 1024 * 1024)).toFixed(2);
             const stats = `System Stats:\n- CPU: ${os.cpus().length} Cores\n- RAM: ${freeMem}GB / ${totalMem}GB free\n- Current Model: ${currentConfig.model}`;
             setMessages(prev => [...prev, { id: 'user-' + Date.now(), role: 'user', content: '/stats' }, { id: 'sys-' + Date.now(), role: 'system', content: stats }]);
+            return;
+        }
+        if (lowerContent === '/debug') {
+            const tracker = DebugTracker.getInstance();
+            const recentLogs = tracker.getRecentLogs(10);
+            if (recentLogs.length === 0) {
+                setMessages(prev => [...prev, {
+                        id: 'sys-' + Date.now(),
+                        role: 'system',
+                        content: '🐛 **DEBUG MODE**\nNo errors recorded yet. Try chatting with a model that has issues.'
+                    }]);
+                return;
+            }
+            let debugContent = '🐛 **DEBUG MODE - ERROR HISTORY**\n\n';
+            debugContent += `Total Errors: ${recentLogs.length}\n`;
+            debugContent += `Current Model: ${currentConfig.model}\n`;
+            debugContent += `Debug Mode: ${process.env.DEBUG === 'true' ? '✅ Enabled' : '❌ Disabled'}\n\n`;
+            debugContent += `**Recent Errors:**\n\n`;
+            recentLogs.reverse().forEach((log, index) => {
+                debugContent += `**${index + 1}. ${log.errorType}**\n`;
+                debugContent += `• Model: ${log.model}\n`;
+                debugContent += `• Time: ${log.timestamp}\n`;
+                if (log.statusCode)
+                    debugContent += `• Status: ${log.statusCode}\n`;
+                debugContent += `• Message: ${log.errorMessage}\n`;
+                if (log.suggestion)
+                    debugContent += `• Suggestion: ${log.suggestion}\n`;
+                debugContent += `\n`;
+            });
+            debugContent += `\n**Enable Debug Mode:**\n`;
+            debugContent += `Run: \`export DEBUG=true\` before starting the CLI\n`;
+            debugContent += `Or: \`DEBUG=true npm start\`\n\n`;
+            debugContent += `**Export Logs:**\n`;
+            debugContent += `Run: \`/debug export\` to save to file`;
+            setMessages(prev => [...prev, {
+                    id: 'sys-' + Date.now(),
+                    role: 'system',
+                    content: debugContent
+                }]);
+            return;
+        }
+        if (lowerContent === '/debug export') {
+            const tracker = DebugTracker.getInstance();
+            const exportData = tracker.exportLogs();
+            const exportPath = path.join(process.cwd(), 'debug_logs.json');
+            try {
+                fs.writeFileSync(exportPath, exportData);
+                setMessages(prev => [...prev, {
+                        id: 'sys-' + Date.now(),
+                        role: 'system',
+                        content: `✅ **Debug logs exported to:** \`${exportPath}\`\n\n\`\`\`json\n${exportData.substring(0, 1000)}...\n\`\`\``
+                    }]);
+            }
+            catch (e) {
+                setMessages(prev => [...prev, {
+                        id: 'sys-' + Date.now(),
+                        role: 'system',
+                        content: `❌ Failed to export debug logs: ${e}`
+                    }]);
+            }
+            return;
+        }
+        if (lowerContent.startsWith('/debug clear')) {
+            const tracker = DebugTracker.getInstance();
+            // Clear logs by creating new instance
+            DebugTracker.getInstance().getRecentLogs(0);
+            setMessages(prev => [...prev, {
+                    id: 'sys-' + Date.now(),
+                    role: 'system',
+                    content: '✅ **Debug logs cleared.**'
+                }]);
             return;
         }
         const userMsg = { id: 'user-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7), role: 'user', content: truncateForRAM(content) };
